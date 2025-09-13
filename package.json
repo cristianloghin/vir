@@ -1,0 +1,31 @@
+{
+  "name": "@mikrostack/vir",
+  "version": "1.0.0",
+  "description": "Virtualization list",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "author": "hi.cris.loghin@gmail.com",
+  "license": "ISC",
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.87.4",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.17.20",
+    "@types/react": "^19.1.13",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "lodash": "^4.17.21"
+  }
+}
