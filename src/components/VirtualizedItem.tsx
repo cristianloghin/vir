@@ -6,12 +6,12 @@ import {
   useLayoutEffect,
   useRef,
 } from "react";
-import { VisibleItem } from "../types";
+import { VisibleItem, VirtualizedItemComponent } from "../types";
 
 // Memoized item wrapper
-interface VirtualizedItemProps<T = any> {
+interface VirtualizedItemWrapperProps<T = any> {
   item: VisibleItem<T>;
-  ItemComponent: React.ComponentType<any>;
+  ItemComponent: VirtualizedItemComponent<T>;
   onMeasure: (id: string, height: number) => void;
   onToggleMaximize: (id: string, height?: number) => void;
 }
@@ -22,7 +22,7 @@ export const VirtualizedItem = memo(
     ItemComponent,
     onMeasure,
     onToggleMaximize,
-  }: VirtualizedItemProps<T>) => {
+  }: VirtualizedItemWrapperProps<T>) => {
     const itemRef = useRef<HTMLDivElement>(null);
     const lastMeasuredHeight = useRef<number>(0);
     const resizeObserver = useRef<ResizeObserver>(null);
@@ -108,12 +108,14 @@ export const VirtualizedItem = memo(
     return (
       <div ref={itemRef} style={style} className="virtualized-item">
         <ItemComponent
-          {...item.content}
           id={item.id}
+          content={item.content}
+          index={item.index}
           isMaximized={item.isMaximized}
           onToggleMaximize={handleToggleMaximize}
+          type={(item.content as any)?.type}
         />
       </div>
     );
   }
-) as <T>(props: VirtualizedItemProps<T>) => JSX.Element;
+) as <T>(props: VirtualizedItemWrapperProps<T>) => JSX.Element;

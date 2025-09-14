@@ -34,20 +34,24 @@ export class VirtualizedListManager<T = any> {
   private config: VirtualizedListConfig;
   private maximizationConfig: MaximizationConfig;
 
+
   // New properties for data transition handling
   private transitionManager: TransitionManager;
 
-  constructor(dataProvider: DataProvider<T>, config: VirtualizedListConfig = {}) {
+  constructor(
+    dataProvider: DataProvider<T>,
+    config: VirtualizedListConfig = {}
+  ) {
     this.dataProvider = dataProvider;
     this.config = config;
 
     // Set default maximization config
     this.maximizationConfig = {
-      mode: 'fixed',
+      mode: "fixed",
       containerPercentage: 0.8,
       clipOverflow: true,
       neighborSpace: 120,
-      ...config.maximization
+      ...config.maximization,
     };
 
     this.setupDataSubscription();
@@ -354,7 +358,9 @@ export class VirtualizedListManager<T = any> {
       this.maximizedItemId = itemId;
 
       // Calculate height based on configuration
-      this.maximizedHeight = this.calculateMaximizedHeight(customMaximizedHeight);
+      this.maximizedHeight = this.calculateMaximizedHeight(
+        customMaximizedHeight
+      );
 
       requestAnimationFrame(() => {
         this.scrollToItemById(itemId);
@@ -374,14 +380,14 @@ export class VirtualizedListManager<T = any> {
     }
 
     switch (config.mode) {
-      case 'natural':
+      case "natural":
         // Return 0 to indicate natural height should be used
         return 0;
 
-      case 'custom':
+      case "custom":
         return config.maxHeight || this.containerHeight * 0.8;
 
-      case 'percentage':
+      case "percentage":
         const percentage = config.containerPercentage || 0.8;
         let maxHeight = this.containerHeight * percentage;
         const neighborSpace = config.neighborSpace || 120;
@@ -390,9 +396,10 @@ export class VirtualizedListManager<T = any> {
         }
         return Math.max(maxHeight, 200);
 
-      case 'fixed':
+      case "fixed":
       default:
-        let fixedHeight = this.containerHeight * (config.containerPercentage || 0.8);
+        let fixedHeight =
+          this.containerHeight * (config.containerPercentage || 0.8);
         const space = config.neighborSpace || 120;
         if (fixedHeight > this.containerHeight - space) {
           fixedHeight = this.containerHeight - space;
@@ -512,6 +519,7 @@ export class VirtualizedListManager<T = any> {
   getMaximizationConfig(): MaximizationConfig {
     return this.maximizationConfig;
   }
+
 
   getSnapshot = () => {
     try {

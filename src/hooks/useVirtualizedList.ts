@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { VirtualizedListManager } from "../core/VirtualizedListManager";
-import { DataProvider, ViewportInfo, VisibleItem, VirtualizedListConfig, MaximizationConfig } from "../types";
+import { DataProvider, ViewportInfo, VisibleItem, VirtualizedListConfig, MaximizationConfig, VirtualizedItemComponent } from "../types";
 
 import { isEqual } from "lodash";
 
@@ -16,7 +16,7 @@ interface ListState<T> {
 // React hook with stable references
 export function useVirtualizedList<T = any>(
   dataProvider: DataProvider<T>,
-  itemComponent: React.ComponentType<any>,
+  itemComponent: VirtualizedItemComponent<T>,
   config?: VirtualizedListConfig
 ) {
   const managerRef = useRef<VirtualizedListManager<T>>(null);

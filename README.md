@@ -28,14 +28,15 @@ const items = [
   // ... more items
 ];
 
-const ItemComponent = ({ id, title, description, isMaximized, onToggleMaximize }) => (
+const ItemComponent = ({ id, content, index, isMaximized, onToggleMaximize }) => (
   <div>
-    <h3>{title}</h3>
-    <p>{description}</p>
+    <h3>{content.title}</h3>
+    <p>{content.description}</p>
     {isMaximized && <div>Expanded content here...</div>}
     <button onClick={onToggleMaximize}>
       {isMaximized ? 'Collapse' : 'Expand'}
     </button>
+    <small>Item #{index}</small>
   </div>
 );
 
@@ -171,12 +172,123 @@ const { dataProvider } = useReactQueryDataProvider({
 Your item components receive these props:
 
 ```tsx
-interface ItemProps {
+interface VirtualizedItemProps<TContent = any> {
+  /** Unique identifier for the item */
   id: string;
+  /** The actual data content for this item */
+  content: TContent;
+  /** Current index in the virtualized list */
+  index: number;
+  /** Whether this item is currently maximized/expanded */
   isMaximized: boolean;
+  /** Function to toggle the maximized state */
   onToggleMaximize: () => void;
-  // ... your custom content props
+  /** Optional type/category of the item */
+  type?: string;
 }
+```
+
+For TypeScript users, use the `VirtualizedItemComponent` type:
+
+```tsx
+import {
+  VirtualizedItemComponent,
+  isPlaceholderContent,
+  isErrorContent,
+  isRealContent
+} from '@mikrostack/vir';
+
+interface MyItemData {
+  title: string;
+  description: string;
+  category: string;
+}
+
+const MyItemComponent: VirtualizedItemComponent<MyItemData> = ({
+  id,
+  content,
+  index,
+  isMaximized,
+  onToggleMaximize,
+  type
+}) => {
+  // Handle loading state
+  if (isPlaceholderContent(content)) {
+    return (
+      <div className="skeleton">
+        <div className="skeleton-title" />
+        <div className="skeleton-text" />
+        <div className="skeleton-text" />
+      </div>
+    );
+  }
+
+  // Handle error state
+  if (isErrorContent(content)) {
+    return (
+      <div className="error-item">
+        <h3>Error loading item</h3>
+        <p>{content.error}</p>
+      </div>
+    );
+  }
+
+  // Handle real content (TypeScript now knows content is MyItemData)
+  return (
+    <div>
+      <h3>{content.title}</h3>
+      <p>{content.description}</p>
+      <span>Category: {content.category}</span>
+      <span>Position: {index}</span>
+      {isMaximized && <div>Extended content...</div>}
+      <button onClick={onToggleMaximize}>Toggle</button>
+    </div>
+  );
+};
+```
+
+## Handling Loading States
+
+When using React Query data providers, your components automatically receive loading and error states:
+
+### Loading Skeletons
+```tsx
+if (isPlaceholderContent(content)) {
+  return (
+    <div className="animate-pulse">
+      <div className="h-6 bg-gray-200 rounded mb-2" />
+      <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
+      <div className="h-4 bg-gray-200 rounded w-1/2" />
+    </div>
+  );
+}
+```
+
+### Error States
+```tsx
+if (isErrorContent(content)) {
+  return (
+    <div className="error-state p-4 border border-red-200 bg-red-50">
+      <h4 className="text-red-800">Failed to load</h4>
+      <p className="text-red-600">{content.error}</p>
+    </div>
+  );
+}
+```
+
+### Configuration
+Control loading behavior in your data provider options:
+
+```tsx
+const { dataProvider } = useReactQueryDataProvider(
+  ['items'],
+  fetchItems,
+  {
+    placeholderCount: 5, // Show 5 skeleton items
+    showPlaceholdersWhileLoading: true,
+    showErrorItem: true
+  }
+);
 ```
 
 ## Advanced Features

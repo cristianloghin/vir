@@ -1,12 +1,12 @@
 import { JSX, memo } from "react";
 import { VirtualizedItem } from "./VirtualizedItem";
-import { DataProvider, VirtualizedListConfig } from "../types";
+import { DataProvider, VirtualizedListConfig, VirtualizedItemComponent } from "../types";
 import { useVirtualizedList } from "../hooks";
 
 // Main component with React.memo and stable props
 interface VirtualizedListProps<T = any> {
   dataProvider: DataProvider<T>;
-  ItemComponent: React.ComponentType<any>;
+  ItemComponent: VirtualizedItemComponent<T>;
   className?: string;
   style?: React.CSSProperties;
   config?: VirtualizedListConfig;
