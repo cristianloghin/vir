@@ -6,5 +6,6 @@ export default defineConfig({
   dts: true, // Generate .d.ts files
   splitting: false,
   sourcemap: true,
-  clean: true, // Clean output directory before building
+  clean: true, // Clean output directory before building,
+  minify: true,
 });

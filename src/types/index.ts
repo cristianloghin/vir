@@ -49,14 +49,8 @@ export interface SharedListState {
   containerHeight: number;
 }
 
-// Selector function type
-export type SelectorFunction<TData, TTransformed = TData> = (
-  allItems: ListItem<TData>[],
-  ...dependencies: any[]
-) => ListItem<TTransformed>[];
-
 export interface MaximizationConfig {
-  mode: 'fixed' | 'natural' | 'percentage' | 'custom';
+  mode: "fixed" | "natural" | "percentage" | "custom";
   maxHeight?: number; // for 'custom' mode
   containerPercentage?: number; // for 'percentage' mode (default 0.8)
   clipOverflow?: boolean; // whether to add overflow:hidden
@@ -64,6 +58,7 @@ export interface MaximizationConfig {
 }
 
 export interface VirtualizedListConfig {
+  defaultItemHeight?: number;
   maximization?: MaximizationConfig;
 }
 
@@ -80,10 +75,15 @@ export interface ErrorContent {
 }
 
 // Union type for all possible content states
-export type ItemContentState<TContent = any> = TContent | PlaceholderContent | ErrorContent;
+export type ItemContentState<TContent = any> =
+  | TContent
+  | PlaceholderContent
+  | ErrorContent;
 
 // Type guards for content state
-export const isPlaceholderContent = (content: any): content is PlaceholderContent => {
+export const isPlaceholderContent = (
+  content: any
+): content is PlaceholderContent => {
   return content && content.__isPlaceholder === true;
 };
 
@@ -91,7 +91,9 @@ export const isErrorContent = (content: any): content is ErrorContent => {
   return content && content.__isError === true;
 };
 
-export const isRealContent = <TContent>(content: ItemContentState<TContent>): content is TContent => {
+export const isRealContent = <TContent>(
+  content: ItemContentState<TContent>
+): content is TContent => {
   return !isPlaceholderContent(content) && !isErrorContent(content);
 };
 
@@ -112,35 +114,6 @@ export interface VirtualizedItemProps<TContent = any> {
 }
 
 // Type for item components that follow the correct interface
-export type VirtualizedItemComponent<TContent = any> = React.ComponentType<VirtualizedItemProps<TContent>>;
-
-// Integration options with selector support
-export interface UseQueryDataProviderOptions<TData, TTransformed = TData> {
-  // Data transformation (applied before selector)
-  transformData?: (data: TData[]) => ListItem<TData>[];
-
-  // Selector pattern
-  selector?: SelectorFunction<TData, TTransformed>;
-  dependencies?: readonly any[];
-
-  // Placeholder behavior
-  placeholderCount?: number;
-  showPlaceholdersWhileLoading?: boolean;
-
-  // Error handling
-  showErrorItem?: boolean;
-
-  // Performance
-  enableChangeDetection?: boolean;
-
-  // Query options
-  enabled?: boolean;
-  refetchInterval?: number | false;
-  refetchIntervalInBackground?: boolean;
-  staleTime?: number;
-  gcTime?: number;
-  retry?: boolean | number;
-  refetchOnWindowFocus?: boolean;
-  refetchOnMount?: boolean;
-  placeholderData?: TData[] | ((previousData: TData[] | undefined) => TData[]);
-}
+export type VirtualizedItemComponent<TContent = any> = React.ComponentType<
+  VirtualizedItemProps<TContent>
+>;

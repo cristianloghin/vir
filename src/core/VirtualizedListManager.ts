@@ -15,7 +15,7 @@ export class VirtualizedListManager<T = any> {
 
   private dataProvider: DataProvider<T>;
   private measurements = new Map<string, ItemMeasurement>();
-  private defaultItemHeight = 100;
+  private defaultItemHeight: number;
   private containerHeight = 0;
   private scrollTop = 0;
   private maximizedItemId: string | null = null;
@@ -38,7 +38,7 @@ export class VirtualizedListManager<T = any> {
   // New properties for data transition handling
   private transitionManager: TransitionManager;
 
-  private calculator = new VirtualizationCalculator(this.defaultItemHeight);
+  private calculator: VirtualizationCalculator;
 
   constructor(
     dataProvider: DataProvider<T>,
@@ -46,6 +46,9 @@ export class VirtualizedListManager<T = any> {
   ) {
     this.dataProvider = dataProvider;
     this.config = config;
+
+    this.defaultItemHeight = config.defaultItemHeight ?? 100;
+    this.calculator = new VirtualizationCalculator(this.defaultItemHeight);
 
     // Set default maximization config
     this.maximizationConfig = {
@@ -60,7 +63,7 @@ export class VirtualizedListManager<T = any> {
     this.captureDataSnapshot();
 
     this.transitionManager = new TransitionManager(
-      this.captureDataSnapshot.bind(this),
+      this.captureDataSnapshot,
       this.updateMeasurements.bind(this),
       this.notify.bind(this),
       this.getTotalHeight.bind(this),
@@ -119,7 +122,7 @@ export class VirtualizedListManager<T = any> {
     });
   }
 
-  private captureDataSnapshot(): Set<string> {
+  private captureDataSnapshot = (): Set<string> => {
     // Efficiently capture current item IDs
     if (this.dataProvider.getCurrentItemIds) {
       return new Set(this.dataProvider.getCurrentItemIds());
@@ -130,7 +133,7 @@ export class VirtualizedListManager<T = any> {
     const sampleSize = Math.min(totalCount, 200); // Sample first 200 items
     const sampleItems = this.dataProvider.getData(0, sampleSize - 1);
     return new Set(sampleItems.map((item) => item.id));
-  }
+  };
 
   private scrollToItemById(itemId: string) {
     if (!this.containerElement) return;
@@ -273,14 +276,11 @@ export class VirtualizedListManager<T = any> {
   measureItem(id: string, index: number, height: number) {
     if (height <= 0) return;
 
-    this.calculator.updateMeasurement(id, index, height);
-
     const existingMeasurement = this.measurements.get(id);
     const hasChanged =
       !existingMeasurement || Math.abs(existingMeasurement.height - height) > 1;
 
     if (hasChanged) {
-      console.info("Measured item index:", index, height);
       this.measurements.set(id, { height, top: 0 });
 
       // Update measurements immediately to prevent overlaps on first render
