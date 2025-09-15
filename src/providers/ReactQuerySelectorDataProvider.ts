@@ -46,17 +46,8 @@ export class ReactQuerySelectorDataProvider<TData = any, TTransformed = TData>
   };
 
   private notify = () => {
-    Promise.resolve().then(() => {
-      this.subscribers.forEach((callback) => {
-        try {
-          callback();
-        } catch (error) {
-          console.error(
-            "ReactQuerySelectorDataProvider subscriber error:",
-            error
-          );
-        }
-      });
+    this.subscribers.forEach((callback) => {
+      callback();
     });
   };
 
@@ -206,7 +197,7 @@ export class ReactQuerySelectorDataProvider<TData = any, TTransformed = TData>
     return this.selectedItems.slice(safeStart, safeEnd + 1);
   }
 
-  getTotalCount(): number {
+  getTotalCount = (): number => {
     if (
       this.isLoading &&
       this.selectedItems.length === 0 &&
@@ -224,7 +215,7 @@ export class ReactQuerySelectorDataProvider<TData = any, TTransformed = TData>
     }
 
     return this.selectedItems.length;
-  }
+  };
 
   getItemById(id: string): ListItem<TTransformed> | null {
     if (id.startsWith("__placeholder-") || id === "__error-item") {

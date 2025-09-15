@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { VirtualizedListManager } from "../core/VirtualizedListManager";
-import { DataProvider, ViewportInfo, VisibleItem, VirtualizedListConfig, MaximizationConfig, VirtualizedItemComponent } from "../types";
+import {
+  DataProvider,
+  ViewportInfo,
+  VisibleItem,
+  VirtualizedListConfig,
+  MaximizationConfig,
+  VirtualizedItemComponent,
+} from "../types";
 
 import { isEqual } from "lodash";
 
@@ -16,7 +23,6 @@ interface ListState<T> {
 // React hook with stable references
 export function useVirtualizedList<T = any>(
   dataProvider: DataProvider<T>,
-  itemComponent: VirtualizedItemComponent<T>,
   config?: VirtualizedListConfig
 ) {
   const managerRef = useRef<VirtualizedListManager<T>>(null);
@@ -28,11 +34,6 @@ export function useVirtualizedList<T = any>(
   }
 
   const manager = managerRef.current;
-
-  // Update data provider if it changes
-  useEffect(() => {
-    manager.setDataProvider(dataProvider);
-  }, [dataProvider, manager]);
 
   // Initialize and cleanup
   useEffect(() => {
@@ -67,8 +68,8 @@ export function useVirtualizedList<T = any>(
   );
 
   const measureItem = useCallback(
-    (id: string, height: number) => {
-      manager.measureItem(id, height);
+    (id: string, index: number, height: number) => {
+      manager.measureItem(id, index, height);
     },
     [manager]
   );
@@ -91,6 +92,5 @@ export function useVirtualizedList<T = any>(
     toggleMaximize,
     scrollToTop,
     state,
-    ItemComponent: itemComponent,
   };
 }

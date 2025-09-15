@@ -1,6 +1,10 @@
 import { JSX, memo } from "react";
 import { VirtualizedItem } from "./VirtualizedItem";
-import { DataProvider, VirtualizedListConfig, VirtualizedItemComponent } from "../types";
+import {
+  DataProvider,
+  VirtualizedListConfig,
+  VirtualizedItemComponent,
+} from "../types";
 import { useVirtualizedList } from "../hooks";
 
 // Main component with React.memo and stable props
@@ -27,7 +31,7 @@ export const VirtualizedList = memo(
       toggleMaximize,
       scrollToTop,
       state,
-    } = useVirtualizedList(dataProvider, ItemComponent, config);
+    } = useVirtualizedList(dataProvider, config);
 
     if (state.viewportInfo.totalCount === 0) {
       return (

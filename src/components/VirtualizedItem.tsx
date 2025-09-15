@@ -12,7 +12,7 @@ import { VisibleItem, VirtualizedItemComponent } from "../types";
 interface VirtualizedItemWrapperProps<T = any> {
   item: VisibleItem<T>;
   ItemComponent: VirtualizedItemComponent<T>;
-  onMeasure: (id: string, height: number) => void;
+  onMeasure: (id: string, index: number, height: number) => void;
   onToggleMaximize: (id: string, height?: number) => void;
 }
 
@@ -34,7 +34,7 @@ export const VirtualizedItem = memo(
             const height = itemRef.current.offsetHeight;
             if (height > 0 && height !== lastMeasuredHeight.current) {
               lastMeasuredHeight.current = height;
-              onMeasure(item.id, height);
+              onMeasure(item.id, item.index, height);
             }
           }
         };
@@ -47,7 +47,7 @@ export const VirtualizedItem = memo(
               const height = entry.contentRect.height;
               if (height > 0 && height !== lastMeasuredHeight.current) {
                 lastMeasuredHeight.current = height;
-                onMeasure(item.id, height);
+                onMeasure(item.id, item.index, height);
               }
             }
           });
@@ -78,7 +78,7 @@ export const VirtualizedItem = memo(
     // Get maximization config from the item
     const maximizationConfig = item.maximizationConfig;
     const shouldClipOverflow = maximizationConfig?.clipOverflow !== false;
-    const isNaturalMode = maximizationConfig?.mode === 'natural';
+    const isNaturalMode = maximizationConfig?.mode === "natural";
 
     const style: React.CSSProperties = item.measurement
       ? {
@@ -87,22 +87,26 @@ export const VirtualizedItem = memo(
           left: 0,
           right: 0,
           contain: "layout style",
-          ...(item.isMaximized && !isNaturalMode && {
-            height: item.measurement.height,
-            ...(shouldClipOverflow && { overflow: "hidden" }),
-          }),
-          ...(item.isMaximized && isNaturalMode && shouldClipOverflow && {
-            overflow: "hidden",
-          }),
+          ...(item.isMaximized &&
+            !isNaturalMode && {
+              height: item.measurement.height,
+              ...(shouldClipOverflow && { overflow: "hidden" }),
+            }),
+          ...(item.isMaximized &&
+            isNaturalMode &&
+            shouldClipOverflow && {
+              overflow: "hidden",
+            }),
         }
       : {
           position: "relative", // Use relative positioning until measured
           left: 0,
           right: 0,
           contain: "layout style",
-          ...(item.isMaximized && shouldClipOverflow && {
-            overflow: "hidden",
-          }),
+          ...(item.isMaximized &&
+            shouldClipOverflow && {
+              overflow: "hidden",
+            }),
         };
 
     return (

@@ -8,6 +8,7 @@ import {
 } from "../types";
 import { setDifference } from "../utils";
 import { TransitionManager } from "./TransitionManager";
+import { VirtualizationCalculator } from "./VirtualizationCalculator";
 
 export class VirtualizedListManager<T = any> {
   private uuid: string;
@@ -34,9 +35,10 @@ export class VirtualizedListManager<T = any> {
   private config: VirtualizedListConfig;
   private maximizationConfig: MaximizationConfig;
 
-
   // New properties for data transition handling
   private transitionManager: TransitionManager;
+
+  private calculator = new VirtualizationCalculator(this.defaultItemHeight);
 
   constructor(
     dataProvider: DataProvider<T>,
@@ -63,7 +65,7 @@ export class VirtualizedListManager<T = any> {
       this.notify.bind(this),
       this.getTotalHeight.bind(this),
       this.scrollToItemById.bind(this),
-      this.dataProvider.getTotalCount.bind(this),
+      this.dataProvider.getTotalCount,
       this.getListState.bind(this),
       this.setScrollTop.bind(this),
       this.clearMaximization.bind(this),
@@ -206,18 +208,6 @@ export class VirtualizedListManager<T = any> {
     }
   }
 
-  setDataProvider(dataProvider: DataProvider<T>) {
-    if (this.dataProvider === dataProvider) return;
-
-    if (this.dataUnsubscribe) {
-      this.dataUnsubscribe();
-    }
-
-    this.dataProvider = dataProvider;
-    this.setupDataSubscription();
-    this.transitionManager.handleDataChange();
-  }
-
   setContainer(element: HTMLElement | null) {
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
@@ -280,14 +270,17 @@ export class VirtualizedListManager<T = any> {
     this.notify();
   }
 
-  measureItem(id: string, height: number) {
+  measureItem(id: string, index: number, height: number) {
     if (height <= 0) return;
+
+    this.calculator.updateMeasurement(id, index, height);
 
     const existingMeasurement = this.measurements.get(id);
     const hasChanged =
       !existingMeasurement || Math.abs(existingMeasurement.height - height) > 1;
 
     if (hasChanged) {
+      console.info("Measured item index:", index, height);
       this.measurements.set(id, { height, top: 0 });
 
       // Update measurements immediately to prevent overlaps on first render
@@ -316,7 +309,11 @@ export class VirtualizedListManager<T = any> {
       let height = existingMeasurement?.height || this.defaultItemHeight;
 
       // For natural mode, don't override height - let the component measure itself
-      if (item.id === this.maximizedItemId && this.maximizedHeight > 0 && this.maximizationConfig.mode !== 'natural') {
+      if (
+        item.id === this.maximizedItemId &&
+        this.maximizedHeight > 0 &&
+        this.maximizationConfig.mode !== "natural"
+      ) {
         height = this.maximizedHeight;
       }
 
@@ -519,7 +516,6 @@ export class VirtualizedListManager<T = any> {
   getMaximizationConfig(): MaximizationConfig {
     return this.maximizationConfig;
   }
-
 
   getSnapshot = () => {
     try {
