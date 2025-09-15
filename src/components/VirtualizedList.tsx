@@ -33,36 +33,58 @@ export const VirtualizedList = memo(
       state,
     } = useVirtualizedList(dataProvider, config);
 
+    // Prepare merged styles for elements (preserve user-provided `style` and `className` prop)
+    const outerStyle: React.CSSProperties = { position: "relative", ...style };
+    const emptyStateStyle: React.CSSProperties = {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      height: "100%",
+      color: "#6b7280", // tailwind gray-500
+      ...style,
+    };
+
     if (state.viewportInfo.totalCount === 0) {
       return (
-        <div
-          className={`flex items-center justify-center h-full text-gray-500 ${className}`}
-          style={style}
-        >
+        <div className={className} style={emptyStateStyle}>
           No items to display
         </div>
       );
     }
 
+    const containerStyle: React.CSSProperties = {
+      height: "100%",
+      overflow: "scroll",
+      scrollbarGutter: "stable",
+      overscrollBehavior: state.maximizedItemId ? "contain" : "auto",
+      willChange: "scroll-position",
+    };
+
+    const innerStyle: React.CSSProperties = {
+      position: "relative",
+      height: state.viewportInfo.totalHeight,
+      contain: "strict",
+    };
+
+    const scrollToTopButtonStyle: React.CSSProperties = {
+      position: "absolute",
+      bottom: 16, // tailwind bottom-4
+      right: 16, // tailwind right-4
+      backgroundColor: "#3b82f6", // tailwind blue-500
+      color: "#ffffff",
+      padding: 12, // tailwind p-3
+      borderRadius: 9999,
+      boxShadow:
+        "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)",
+      transitionProperty: "background-color",
+      transitionDuration: "200ms",
+      zIndex: 1000,
+    };
+
     return (
-      <div className={`relative ${className}`} style={style}>
-        <div
-          ref={containerRef}
-          onScroll={handleScroll}
-          className="h-full overflow-scroll"
-          style={{
-            scrollbarGutter: "stable",
-            overscrollBehavior: state.maximizedItemId ? "contain" : "auto",
-            willChange: "scroll-position",
-          }}
-        >
-          <div
-            className="relative"
-            style={{
-              height: state.viewportInfo.totalHeight,
-              contain: "strict",
-            }}
-          >
+      <div className={className} style={outerStyle}>
+        <div ref={containerRef} onScroll={handleScroll} style={containerStyle}>
+          <div style={innerStyle}>
             {state.visibleItems.map((item) => (
               <VirtualizedItem
                 key={item.id}
@@ -78,9 +100,8 @@ export const VirtualizedList = memo(
         {state.showScrollToTop && (
           <button
             onClick={scrollToTop}
-            className="absolute bottom-4 right-4 bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full shadow-lg transition-colors z-10"
             aria-label="Scroll to top"
-            style={{ zIndex: 1000 }}
+            style={scrollToTopButtonStyle}
           >
             ↑
           </button>
