@@ -6,10 +6,8 @@ import {
   VisibleItem,
   VirtualizedListConfig,
   MaximizationConfig,
-  VirtualizedItemComponent,
 } from "../types";
-
-import { isEqual } from "lodash";
+import { isEqual } from "../utils";
 
 interface ListState<T> {
   viewportInfo: ViewportInfo;

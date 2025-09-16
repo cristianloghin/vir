@@ -8,7 +8,6 @@ import {
 } from "../types";
 import { setDifference } from "../utils";
 import { TransitionManager } from "./TransitionManager";
-import { VirtualizationCalculator } from "./VirtualizationCalculator";
 
 export class VirtualizedListManager<T = any> {
   private uuid: string;
@@ -38,8 +37,6 @@ export class VirtualizedListManager<T = any> {
   // New properties for data transition handling
   private transitionManager: TransitionManager;
 
-  private calculator: VirtualizationCalculator;
-
   constructor(
     dataProvider: DataProvider<T>,
     config: VirtualizedListConfig = {}
@@ -48,7 +45,6 @@ export class VirtualizedListManager<T = any> {
     this.config = config;
 
     this.defaultItemHeight = config.defaultItemHeight ?? 100;
-    this.calculator = new VirtualizationCalculator(this.defaultItemHeight);
 
     // Set default maximization config
     this.maximizationConfig = {
