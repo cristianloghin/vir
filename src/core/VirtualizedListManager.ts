@@ -15,6 +15,8 @@ export class VirtualizedListManager<T = any> {
   private dataProvider: DataProvider<T>;
   private measurements = new Map<string, ItemMeasurement>();
   private defaultItemHeight: number;
+  private gap: number;
+
   private containerHeight = 0;
   private scrollTop = 0;
   private maximizedItemId: string | null = null;
@@ -45,6 +47,7 @@ export class VirtualizedListManager<T = any> {
     this.config = config;
 
     this.defaultItemHeight = config.defaultItemHeight ?? 100;
+    this.gap = config.gap ?? 0;
 
     // Set default maximization config
     this.maximizationConfig = {
@@ -59,7 +62,6 @@ export class VirtualizedListManager<T = any> {
     this.captureDataSnapshot();
 
     this.transitionManager = new TransitionManager(
-      this.captureDataSnapshot,
       this.updateMeasurements.bind(this),
       this.notify.bind(this),
       this.getTotalHeight.bind(this),
@@ -103,6 +105,28 @@ export class VirtualizedListManager<T = any> {
     }
   }
 
+  private cleanupPlaceholderMeasurements() {
+    const keysToRemove: string[] = [];
+
+    this.measurements.forEach((_, key) => {
+      if (key.startsWith("__placeholder-") || key.startsWith("__error-")) {
+        keysToRemove.push(key);
+      }
+    });
+
+    keysToRemove.forEach((key) => {
+      this.measurements.delete(key);
+    });
+
+    if (keysToRemove.length > 0) {
+      console.info(
+        `🧹 Cleaned up ${keysToRemove.length} placeholder measurements`
+      );
+      // Force recalculation of positions after cleanup
+      this.updateMeasurements();
+    }
+  }
+
   private clearMaximization() {
     this.maximizedItemId = null;
     this.maximizedHeight = 0;
@@ -114,7 +138,8 @@ export class VirtualizedListManager<T = any> {
     }
 
     this.dataUnsubscribe = this.dataProvider.subscribe(() => {
-      this.transitionManager.handleDataChange();
+      const newSnapshot = this.captureDataSnapshot();
+      this.transitionManager.handleDataChange(newSnapshot);
     });
   }
 
@@ -296,6 +321,14 @@ export class VirtualizedListManager<T = any> {
 
     // Batch fetch all items instead of individual calls
     const allItems = this.dataProvider.getData(0, totalCount - 1);
+    const isRealData = !allItems.some((item) =>
+      item.id.startsWith("__placeholder-")
+    );
+
+    if (isRealData) {
+      this.cleanupPlaceholderMeasurements();
+    }
+
     let currentTop = 0;
 
     for (let i = 0; i < allItems.length; i++) {
@@ -318,7 +351,7 @@ export class VirtualizedListManager<T = any> {
         top: currentTop,
       });
 
-      currentTop += height;
+      currentTop += height + (i < allItems.length - 1 ? this.gap : 0);
     }
   }
 
@@ -326,7 +359,8 @@ export class VirtualizedListManager<T = any> {
     const totalCount = this.dataProvider.getTotalCount();
 
     if (this.measurements.size === 0) {
-      return totalCount * this.defaultItemHeight;
+      const totalGaps = Math.max(0, totalCount - 1) * this.gap;
+      return totalCount * this.defaultItemHeight + totalGaps;
     }
 
     let totalHeight = 0;
@@ -338,9 +372,10 @@ export class VirtualizedListManager<T = any> {
     });
 
     const unmeasuredItems = totalCount - measuredItems;
-    totalHeight += unmeasuredItems * this.defaultItemHeight;
+    const unmeasuredHeight = unmeasuredItems * this.defaultItemHeight;
+    const totalGaps = Math.max(0, totalCount - 1) * this.gap;
 
-    return totalHeight;
+    return totalHeight + unmeasuredHeight + totalGaps;
   }
 
   toggleMaximize(itemId: string, customMaximizedHeight?: number) {
@@ -461,10 +496,11 @@ export class VirtualizedListManager<T = any> {
 
       // Fallback if no measured items are visible
       if (startIndex === totalCount || endIndex === -1) {
-        startIndex = Math.floor(viewportTop / this.defaultItemHeight);
+        const averageItemWithGap = this.defaultItemHeight + this.gap;
+        startIndex = Math.floor(viewportTop / averageItemWithGap);
         startIndex = Math.max(0, Math.min(startIndex, totalCount - 1));
 
-        endIndex = Math.ceil(viewportBottom / this.defaultItemHeight);
+        endIndex = Math.ceil(viewportBottom / averageItemWithGap);
         endIndex = Math.max(startIndex, Math.min(endIndex, totalCount - 1));
       }
     }

@@ -58,6 +58,7 @@ export interface MaximizationConfig {
 }
 
 export interface VirtualizedListConfig {
+  gap?: number;
   defaultItemHeight?: number;
   maximization?: MaximizationConfig;
 }

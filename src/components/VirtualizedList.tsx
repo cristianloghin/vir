@@ -11,6 +11,7 @@ import { useVirtualizedList } from "../hooks";
 interface VirtualizedListProps<T = any> {
   dataProvider: DataProvider<T>;
   ItemComponent: VirtualizedItemComponent<T>;
+  ScrollTopComponent?: React.FC<{ scrollTop: () => void }>;
   className?: string;
   style?: React.CSSProperties;
   config?: VirtualizedListConfig;
@@ -20,6 +21,7 @@ export const VirtualizedList = memo(
   <T,>({
     dataProvider,
     ItemComponent,
+    ScrollTopComponent,
     className = "",
     style = {},
     config,
@@ -97,15 +99,19 @@ export const VirtualizedList = memo(
           </div>
         </div>
 
-        {state.showScrollToTop && (
-          <button
-            onClick={scrollToTop}
-            aria-label="Scroll to top"
-            style={scrollToTopButtonStyle}
-          >
-            ↑
-          </button>
-        )}
+        {state.showScrollToTop ? (
+          ScrollTopComponent ? (
+            <ScrollTopComponent scrollTop={scrollToTop} />
+          ) : (
+            <button
+              onClick={scrollToTop}
+              aria-label="Scroll to top"
+              style={scrollToTopButtonStyle}
+            >
+              ↑
+            </button>
+          )
+        ) : null}
       </div>
     );
   }

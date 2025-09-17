@@ -7,7 +7,6 @@ export class TransitionManager {
   private pendingScrollContext: ScrollContext | null = null;
 
   constructor(
-    private captureDataSnapshot: () => Set<string>,
     private updateMeasurements: () => void,
     private notify: () => void,
     private getTotalHeight: () => number,
@@ -22,11 +21,10 @@ export class TransitionManager {
     ) => void
   ) {}
 
-  public handleDataChange() {
+  public handleDataChange(newDataSnapshot: Set<string>) {
     this.dataTransitionInProgress = true;
 
     try {
-      const newDataSnapshot = this.captureDataSnapshot();
       const oldDataSnapshot = this.lastDataSnapshot;
 
       // Determine transition type
