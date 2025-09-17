@@ -1,6 +1,6 @@
 {
   "name": "@mikrostack/vir",
-  "version": "0.7.8",
+  "version": "0.0.1",
   "description": "Virtualization List",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
