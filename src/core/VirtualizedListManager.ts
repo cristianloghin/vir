@@ -418,7 +418,7 @@ export class VirtualizedListManager<T = any> {
       case "percentage":
         const percentage = config.containerPercentage || 0.8;
         let maxHeight = this.containerHeight * percentage;
-        const neighborSpace = config.neighborSpace || 120;
+        const neighborSpace = config.neighborSpace ?? 120;
         if (maxHeight > this.containerHeight - neighborSpace) {
           maxHeight = this.containerHeight - neighborSpace;
         }
@@ -428,7 +428,7 @@ export class VirtualizedListManager<T = any> {
       default:
         let fixedHeight =
           this.containerHeight * (config.containerPercentage || 0.8);
-        const space = config.neighborSpace || 120;
+        const space = config.neighborSpace ?? 120;
         if (fixedHeight > this.containerHeight - space) {
           fixedHeight = this.containerHeight - space;
         }
