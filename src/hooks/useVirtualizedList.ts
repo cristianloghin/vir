@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useSyncExternalStore, RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useSyncExternalStore,
+  RefObject,
+} from "react";
 import { VirtualizedListManager } from "../core/VirtualizedListManager";
 import {
   DataProvider,
@@ -21,6 +27,7 @@ interface ListState<T> {
 // React hook with stable references
 export function useVirtualizedList<T = any>(
   dataProvider: DataProvider<T>,
+  internalContainerRef: RefObject<HTMLElement | null>,
   config?: VirtualizedListConfig,
   scrollContainerRef?: RefObject<HTMLElement>
 ) {
@@ -46,8 +53,10 @@ export function useVirtualizedList<T = any>(
   useEffect(() => {
     if (scrollContainerRef?.current) {
       manager.setScrollContainer(scrollContainerRef.current);
+    } else if (internalContainerRef.current) {
+      manager.setScrollContainer(internalContainerRef.current);
     }
-  }, [manager, scrollContainerRef]);
+  }, [manager, internalContainerRef, scrollContainerRef]);
 
   const state = useSyncExternalStore(manager.subscribe, () => {
     const state = manager.getSnapshot();
@@ -58,31 +67,16 @@ export function useVirtualizedList<T = any>(
     return state;
   });
 
-  // Stable callback refs
-  const containerRef = useCallback(
-    (element: HTMLElement | null) => {
-      manager.setContainer(element);
-    },
-    [manager]
-  );
-
-  const scrollContainerCallbackRef = useCallback(
-    (element: HTMLElement | null) => {
-      manager.setScrollContainer(element);
-    },
-    [manager]
-  );
-
-  const handleScroll = useCallback(
-    (e: React.UIEvent<HTMLElement>) => {
-      manager.handleScroll(e.currentTarget.scrollTop);
-    },
-    [manager]
-  );
-
   const measureItem = useCallback(
     (id: string, index: number, height: number) => {
       manager.measureItem(id, index, height);
+    },
+    [manager]
+  );
+
+  const setItemHeight = useCallback(
+    (index: number, height: number) => {
+      manager.setItemHeight(index, height);
     },
     [manager]
   );
@@ -99,9 +93,8 @@ export function useVirtualizedList<T = any>(
   }, [manager]);
 
   return {
-    containerRef,
-    handleScroll,
     measureItem,
+    setItemHeight,
     toggleMaximize,
     scrollToTop,
     state,

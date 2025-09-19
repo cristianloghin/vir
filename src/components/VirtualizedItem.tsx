@@ -14,6 +14,7 @@ interface VirtualizedItemWrapperProps<T = any> {
   ItemComponent: VirtualizedItemComponent<T>;
   onMeasure: (id: string, index: number, height: number) => void;
   onToggleMaximize: (id: string, height?: number) => void;
+  itemObserver: ResizeObserver;
 }
 
 export const VirtualizedItem = memo(
@@ -22,6 +23,7 @@ export const VirtualizedItem = memo(
     ItemComponent,
     onMeasure,
     onToggleMaximize,
+    itemObserver,
   }: VirtualizedItemWrapperProps<T>) => {
     const itemRef = useRef<HTMLDivElement>(null);
     const lastMeasuredHeight = useRef<number>(0);
@@ -71,6 +73,17 @@ export const VirtualizedItem = memo(
       };
     }, []);
 
+    useEffect(() => {
+      const itemElement = itemRef.current;
+      if (!itemElement) return;
+
+      itemObserver.observe(itemElement);
+
+      return () => {
+        itemObserver.unobserve(itemElement);
+      };
+    }, []);
+
     const handleToggleMaximize = useCallback(() => {
       onToggleMaximize(item.id);
     }, [item.id, onToggleMaximize]);
@@ -110,7 +123,12 @@ export const VirtualizedItem = memo(
         };
 
     return (
-      <div ref={itemRef} style={style} className="virtualized-item">
+      <div
+        ref={itemRef}
+        style={style}
+        data-index={item.index}
+        className="virtualized-item"
+      >
         <ItemComponent
           id={item.id}
           content={item.content}

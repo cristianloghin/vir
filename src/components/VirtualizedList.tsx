@@ -1,4 +1,4 @@
-import { JSX, memo, RefObject } from "react";
+import { JSX, memo, RefObject, useRef } from "react";
 import { VirtualizedItem } from "./VirtualizedItem";
 import {
   DataProvider,
@@ -28,14 +28,25 @@ export const VirtualizedList = memo(
     config,
     scrollContainerRef,
   }: VirtualizedListProps<T>) => {
-    const {
-      containerRef,
-      handleScroll,
-      measureItem,
-      toggleMaximize,
-      scrollToTop,
-      state,
-    } = useVirtualizedList(dataProvider, config, scrollContainerRef);
+    const internalContainerRef = useRef<HTMLDivElement>(null);
+    const { measureItem, setItemHeight, toggleMaximize, scrollToTop, state } =
+      useVirtualizedList(
+        dataProvider,
+        internalContainerRef,
+        config,
+        scrollContainerRef
+      );
+
+    const itemObserver = new ResizeObserver((entries) => {
+      entries.forEach((entry) => {
+        const index = (entry.target as HTMLDivElement).dataset.index;
+        const newHeight = entry.contentRect.height;
+
+        if (index) {
+          setItemHeight(Number(index), newHeight);
+        }
+      });
+    });
 
     // Prepare merged styles for elements (preserve user-provided `style` and `className` prop)
     const outerStyle: React.CSSProperties = { position: "relative", ...style };
@@ -87,11 +98,7 @@ export const VirtualizedList = memo(
 
     return (
       <div className={className} style={outerStyle}>
-        <div
-          ref={containerRef}
-          onScroll={scrollContainerRef ? undefined : handleScroll}
-          style={containerStyle}
-        >
+        <div ref={internalContainerRef} style={containerStyle}>
           <div style={innerStyle}>
             {state.visibleItems.map((item) => (
               <VirtualizedItem
@@ -100,6 +107,7 @@ export const VirtualizedList = memo(
                 ItemComponent={ItemComponent}
                 onMeasure={measureItem}
                 onToggleMaximize={toggleMaximize}
+                itemObserver={itemObserver}
               />
             ))}
           </div>

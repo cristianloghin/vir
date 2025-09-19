@@ -17,6 +17,9 @@ export class VirtualizedListManager<T = any> {
   private defaultItemHeight: number;
   private gap: number;
 
+  private heights: number[] = [];
+  private offsets: number[] = [0];
+
   private containerHeight = 0;
   private scrollTop = 0;
   private maximizedItemId: string | null = null;
@@ -24,9 +27,10 @@ export class VirtualizedListManager<T = any> {
   private overscan = 5;
   private subscribers = new Set<() => void>();
   private resizeObserver: ResizeObserver | null = null;
-  private containerElement: HTMLElement | null = null;
+
   private scrollContainerElement: HTMLElement | null = null;
   private scrollEventCleanup: (() => void) | null = null;
+
   private showScrollToTop = false;
   private isInitialized = false;
   private lastKnownScrollTop = 0;
@@ -83,13 +87,13 @@ export class VirtualizedListManager<T = any> {
     return {
       scrollTopRatio: this.scrollTopRatio,
       maximizedItemId: this.maximizedItemId,
-      containerElement: this.containerElement,
+      containerElement: this.scrollContainerElement,
       containerHeight: this.containerHeight,
     };
   }
 
   private setScrollTop(value: number) {
-    const targetElement = this.scrollContainerElement || this.containerElement;
+    const targetElement = this.scrollContainerElement;
     if (!targetElement) return;
     targetElement.scrollTop = value;
   }
@@ -160,7 +164,7 @@ export class VirtualizedListManager<T = any> {
   };
 
   private scrollToItemById(itemId: string) {
-    if (!this.containerElement) return;
+    if (!this.scrollContainerElement) return;
 
     const measurement = this.measurements.get(itemId);
     if (!measurement) {
@@ -173,7 +177,7 @@ export class VirtualizedListManager<T = any> {
       if (itemIndex !== -1) {
         // Estimate position
         const estimatedTop = itemIndex * this.defaultItemHeight;
-        const targetElement = this.scrollContainerElement || this.containerElement;
+        const targetElement = this.scrollContainerElement;
         if (targetElement) {
           targetElement.scrollTop = estimatedTop;
         }
@@ -208,7 +212,7 @@ export class VirtualizedListManager<T = any> {
     const maxScrollTop = Math.max(0, totalHeight - this.containerHeight);
     targetScrollTop = Math.max(0, Math.min(targetScrollTop, maxScrollTop));
 
-    const targetElement = this.scrollContainerElement || this.containerElement;
+    const targetElement = this.scrollContainerElement;
     if (targetElement) {
       targetElement.scrollTo({
         top: targetScrollTop,
@@ -241,18 +245,27 @@ export class VirtualizedListManager<T = any> {
     }
   }
 
-  setContainer(element: HTMLElement | null) {
-    if (this.resizeObserver) {
-      this.resizeObserver.disconnect();
+  setScrollContainer(element: HTMLElement) {
+    // Clean up previous scroll event listeners
+    if (this.scrollEventCleanup) {
+      this.scrollEventCleanup();
+      this.scrollEventCleanup = null;
     }
 
-    this.containerElement = element;
+    this.scrollContainerElement = element;
+
     if (element) {
-      // Use scroll container height if available, otherwise use list container height
-      const initialHeight = this.scrollContainerElement
-        ? this.scrollContainerElement.clientHeight
-        : element.clientHeight;
-      this.containerHeight = initialHeight;
+      this.containerHeight = element.clientHeight;
+
+      // Set up scroll event listener for external container
+      const handleExternalScroll = () => {
+        requestAnimationFrame(() => {
+          if (!this.scrollContainerElement) return;
+
+          const scrollTop = this.scrollContainerElement.scrollTop;
+          this.handleScroll(scrollTop);
+        });
+      };
 
       this.resizeObserver = new ResizeObserver((entries) => {
         for (const entry of entries) {
@@ -268,7 +281,7 @@ export class VirtualizedListManager<T = any> {
             this.containerHeight = newHeight;
 
             requestAnimationFrame(() => {
-              const targetElement = this.scrollContainerElement || this.containerElement;
+              const targetElement = this.scrollContainerElement;
               if (targetElement && this.scrollTopRatio > 0) {
                 const newTotalHeight = this.getTotalHeight();
                 const newScrollTop =
@@ -283,58 +296,20 @@ export class VirtualizedListManager<T = any> {
         }
       });
 
-      // Observe the scroll container if available, otherwise observe the list container
-      const elementToObserve = this.scrollContainerElement || element;
-      this.resizeObserver.observe(elementToObserve);
-      this.isInitialized = true;
-      this.notify();
-    }
-  }
-
-  setScrollContainer(element: HTMLElement | null) {
-    // Clean up previous scroll event listeners
-    if (this.scrollEventCleanup) {
-      this.scrollEventCleanup();
-      this.scrollEventCleanup = null;
-    }
-
-    this.scrollContainerElement = element;
-
-    if (element) {
-      // Set up scroll event listener for external container
-      const handleExternalScroll = () => {
-        if (!this.containerElement || !this.scrollContainerElement) return;
-
-        // Calculate scroll position relative to the list container
-        const containerRect = this.containerElement.getBoundingClientRect();
-        const scrollRect = this.scrollContainerElement.getBoundingClientRect();
-
-        // Calculate visible area of the list within the scroll container
-        const visibleTop = Math.max(0, scrollRect.top - containerRect.top);
-        const visibleBottom = Math.min(
-          containerRect.height,
-          scrollRect.top + scrollRect.height - containerRect.top
-        );
-
-        // Use scroll container's scrollTop as our scroll position
-        const scrollTop = this.scrollContainerElement.scrollTop;
-        this.handleScroll(scrollTop);
-      };
-
-      // Set up resize observer for scroll container
-      const scrollResizeObserver = new ResizeObserver(() => {
-        handleExternalScroll();
+      element.addEventListener("scroll", handleExternalScroll, {
+        passive: true,
       });
-
-      element.addEventListener('scroll', handleExternalScroll, { passive: true });
-      scrollResizeObserver.observe(element);
 
       // Initial scroll calculation
       handleExternalScroll();
 
+      this.resizeObserver.observe(this.scrollContainerElement);
+      this.isInitialized = true;
+      this.notify();
+
       this.scrollEventCleanup = () => {
-        element.removeEventListener('scroll', handleExternalScroll);
-        scrollResizeObserver.disconnect();
+        element.removeEventListener("scroll", handleExternalScroll);
+        this.resizeObserver?.disconnect();
       };
     }
   }
@@ -377,6 +352,59 @@ export class VirtualizedListManager<T = any> {
       });
     }
   }
+
+  setItemHeight = (index: number, height: number) => {
+    console.debug(`Setting item ${index} height ${height}`);
+    if (height !== this.heights[index]) {
+      this.heights[index] = height;
+      this.buildOffsets(index);
+    }
+  };
+
+  private buildOffsets = (fromIndex: number = 0) => {
+    const heightsLength = this.heights.length;
+
+    // Ensure offsets array is the right size
+    this.offsets.length = heightsLength + 1;
+
+    // Get starting offset
+    let offset = fromIndex > 0 ? this.offsets[fromIndex] : 0;
+
+    // Use a single loop with direct array access
+    for (let i = fromIndex; i < heightsLength; i++) {
+      offset += this.heights[i] + this.gap;
+      this.offsets[i + 1] = offset;
+    }
+  };
+
+  private findFirstVisible = (scrollTop: number) => {
+    let left = 0,
+      right = this.offsets.length - 1;
+    while (left < right) {
+      const mid = Math.floor((left + right) / 2);
+      if (this.offsets[mid] < scrollTop) {
+        left = mid + 1;
+      } else {
+        right = mid;
+      }
+    }
+    return left;
+  };
+
+  private findLastVisible = (scrollBottom: number) => {
+    let left = 0,
+      right = this.offsets.length - 1;
+
+    while (left < right) {
+      const mid = Math.floor((left + right + 1) / 2);
+      if (this.offsets[mid] <= scrollBottom) {
+        left = mid;
+      } else {
+        right = mid - 1;
+      }
+    }
+    return left;
+  };
 
   private updateMeasurements() {
     const totalCount = this.dataProvider.getTotalCount();
@@ -500,7 +528,7 @@ export class VirtualizedListManager<T = any> {
   }
 
   scrollToTop() {
-    const targetElement = this.scrollContainerElement || this.containerElement;
+    const targetElement = this.scrollContainerElement;
     if (targetElement) {
       targetElement.scrollTo({
         top: 0,
@@ -508,6 +536,14 @@ export class VirtualizedListManager<T = any> {
       });
     }
   }
+
+  getVisible = () => {
+    const totalCount = this.dataProvider.getTotalCount();
+
+    if (!this.isInitialized || totalCount === 0) {
+      return { start: 0, end: 0 };
+    }
+  };
 
   getViewportInfo(): ViewportInfo {
     const totalCount = this.dataProvider.getTotalCount();
@@ -665,7 +701,6 @@ export class VirtualizedListManager<T = any> {
       this.dataUnsubscribe = null;
     }
     this.subscribers.clear();
-    this.containerElement = null;
     this.scrollContainerElement = null;
     this.isInitialized = false;
   }
