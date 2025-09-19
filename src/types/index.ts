@@ -28,22 +28,11 @@ export interface VisibleItem<T = any> {
   content: T;
   index: number;
   measurement?: ItemMeasurement;
-  isMaximized: boolean;
-  maximizationConfig?: MaximizationConfig;
-}
-
-export interface MaximizationConfig {
-  mode: "fixed" | "natural" | "percentage" | "custom";
-  maxHeight?: number; // for 'custom' mode
-  containerPercentage?: number; // for 'percentage' mode (default 0.8)
-  clipOverflow?: boolean; // whether to add overflow:hidden
-  neighborSpace?: number; // space to leave for neighboring items
 }
 
 export interface VirtualizedListConfig {
   gap?: number;
   defaultItemHeight?: number;
-  maximization?: MaximizationConfig;
 }
 
 // Special content types for loading and error states
@@ -89,10 +78,8 @@ export interface VirtualizedItemProps<TContent = any> {
   content: ItemContentState<TContent>;
   /** Current index in the virtualized list */
   index: number;
-  /** Whether this item is currently maximized/expanded */
-  isMaximized: boolean;
-  /** Function to toggle the maximized state */
-  onToggleMaximize: () => void;
+  /** Function to scroll to item */
+  onScrollToItem: (index: number) => void;
   /** Optional type/category of the item */
   type?: string;
 }

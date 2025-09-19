@@ -17,10 +17,8 @@ import { isEqual } from "../utils";
 interface ListState<T> {
   visibleItems: VisibleItem<T>[];
   showScrollToTop: boolean;
-  maximizedItemIndex: number | null;
   isInitialized: boolean;
   totalHeight: number;
-  maximizationConfig: MaximizationConfig;
 }
 
 // React hook with stable references
@@ -80,9 +78,9 @@ export function useVirtualizedList<T = any>(
     [manager]
   );
 
-  const toggleMaximize = useCallback(
+  const scrollToItem = useCallback(
     (index: number) => {
-      manager.toggleMaximize(index);
+      manager.scrollToItem(index);
     },
     [manager]
   );
@@ -94,7 +92,7 @@ export function useVirtualizedList<T = any>(
   return {
     internalContainerRef,
     setItemHeight,
-    toggleMaximize,
+    scrollToItem,
     scrollToTop,
     state,
   };

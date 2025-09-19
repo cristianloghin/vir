@@ -31,7 +31,7 @@ export const VirtualizedList = memo(
     const {
       internalContainerRef,
       setItemHeight,
-      toggleMaximize,
+      scrollToItem,
       scrollToTop,
       state,
     } = useVirtualizedList(dataProvider, config, scrollContainerRef);
@@ -71,7 +71,6 @@ export const VirtualizedList = memo(
       height: "100%",
       overflow: scrollContainerRef ? "visible" : "scroll",
       scrollbarGutter: scrollContainerRef ? "auto" : "stable",
-      overscrollBehavior: state.maximizedItemIndex ? "contain" : "auto",
       willChange: "scroll-position",
     };
 
@@ -105,7 +104,7 @@ export const VirtualizedList = memo(
                 key={item.id}
                 item={item}
                 ItemComponent={ItemComponent}
-                onToggleMaximize={toggleMaximize}
+                onScrollToItem={scrollToItem}
                 itemObserver={itemObserver}
               />
             ))}

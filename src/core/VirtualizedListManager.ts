@@ -3,7 +3,6 @@ import {
   ViewportInfo,
   VisibleItem,
   VirtualizedListConfig,
-  MaximizationConfig,
 } from "../types";
 
 export class VirtualizedListManager<T = any> {
@@ -18,7 +17,6 @@ export class VirtualizedListManager<T = any> {
 
   private containerHeight = 0;
   private scrollTop = 0;
-  private maximizedItemIndex: number | null = null;
   private overscan = 5;
   private subscribers = new Set<() => void>();
   private resizeObserver: ResizeObserver | null = null;
@@ -33,9 +31,6 @@ export class VirtualizedListManager<T = any> {
   private notifyScheduled = false;
   private dataUnsubscribe: (() => void) | null = null;
 
-  // Configuration
-  private maximizationConfig: MaximizationConfig;
-
   constructor(
     dataProvider: DataProvider<T>,
     config: VirtualizedListConfig = {}
@@ -44,15 +39,6 @@ export class VirtualizedListManager<T = any> {
 
     this.defaultItemHeight = config.defaultItemHeight ?? 100;
     this.gap = config.gap ?? 0;
-
-    // Set default maximization config
-    this.maximizationConfig = {
-      mode: "fixed",
-      containerPercentage: 0.8,
-      clipOverflow: true,
-      neighborSpace: 120,
-      ...config.maximization,
-    };
 
     this.uuid = Math.random().toString(36).substring(2, 10);
     console.info("🆕 Created VirtualizedListManager", this.uuid);
@@ -68,7 +54,7 @@ export class VirtualizedListManager<T = any> {
     });
   }
 
-  private scrollToItem(index: number) {
+  scrollToItem = (index: number) => {
     if (!this.scrollContainerElement) return;
 
     if (this.offsets[index] === undefined) return;
@@ -78,7 +64,7 @@ export class VirtualizedListManager<T = any> {
       top: itemTop,
       behavior: "smooth",
     });
-  }
+  };
 
   // Rest of the manager methods remain the same...
   subscribe = (callback: () => void) => {
@@ -260,56 +246,6 @@ export class VirtualizedListManager<T = any> {
     return totalCount * this.defaultItemHeight + totalGaps;
   };
 
-  toggleMaximize(index: number) {
-    if (this.maximizedItemIndex === index) {
-      this.maximizedItemIndex = null;
-    } else {
-      this.maximizedItemIndex = index;
-      requestAnimationFrame(() => {
-        this.scrollToItem(index);
-      });
-    }
-
-    this.notify();
-  }
-
-  private calculateMaximizedHeight(customHeight?: number): number {
-    const config = this.maximizationConfig;
-
-    // Custom height takes precedence
-    if (customHeight) {
-      return customHeight;
-    }
-
-    switch (config.mode) {
-      case "natural":
-        // Return 0 to indicate natural height should be used
-        return 0;
-
-      case "custom":
-        return config.maxHeight || this.containerHeight * 0.8;
-
-      case "percentage":
-        const percentage = config.containerPercentage || 0.8;
-        let maxHeight = this.containerHeight * percentage;
-        const neighborSpace = config.neighborSpace ?? 120;
-        if (maxHeight > this.containerHeight - neighborSpace) {
-          maxHeight = this.containerHeight - neighborSpace;
-        }
-        return Math.max(maxHeight, 200);
-
-      case "fixed":
-      default:
-        let fixedHeight =
-          this.containerHeight * (config.containerPercentage || 0.8);
-        const space = config.neighborSpace ?? 120;
-        if (fixedHeight > this.containerHeight - space) {
-          fixedHeight = this.containerHeight - space;
-        }
-        return Math.max(fixedHeight, 200);
-    }
-  }
-
   scrollToTop() {
     const targetElement = this.scrollContainerElement;
     if (targetElement) {
@@ -384,8 +320,6 @@ export class VirtualizedListManager<T = any> {
           content: item.content,
           index: actualIndex,
           measurement,
-          isMaximized: actualIndex === this.maximizedItemIndex,
-          maximizationConfig: this.maximizationConfig,
         };
       });
     } catch (error) {
@@ -400,19 +334,15 @@ export class VirtualizedListManager<T = any> {
         visibleItems: this.getVisibleItems(),
         totalHeight: this.getTotalHeight(),
         showScrollToTop: this.showScrollToTop,
-        maximizedItemIndex: this.maximizedItemIndex,
         isInitialized: this.isInitialized,
-        maximizationConfig: this.maximizationConfig,
       };
     } catch (error) {
       console.error("Error getting snapshot:", error);
       return {
         visibleItems: [],
         showScrollToTop: false,
-        maximizedItemIndex: null,
         isInitialized: false,
         totalHeight: 0,
-        maximizationConfig: this.maximizationConfig,
       };
     }
   };

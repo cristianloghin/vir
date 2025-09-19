@@ -5,7 +5,7 @@ import { VisibleItem, VirtualizedItemComponent } from "../types";
 interface VirtualizedItemWrapperProps<T = any> {
   item: VisibleItem<T>;
   ItemComponent: VirtualizedItemComponent<T>;
-  onToggleMaximize: (index: number, height?: number) => void;
+  onScrollToItem: (index: number) => void;
   itemObserver: ResizeObserver;
 }
 
@@ -13,7 +13,7 @@ export const VirtualizedItem = memo(
   <T,>({
     item,
     ItemComponent,
-    onToggleMaximize,
+    onScrollToItem,
     itemObserver,
   }: VirtualizedItemWrapperProps<T>) => {
     const itemRef = useRef<HTMLDivElement>(null);
@@ -29,15 +29,6 @@ export const VirtualizedItem = memo(
       };
     }, []);
 
-    const handleToggleMaximize = useCallback(() => {
-      onToggleMaximize(item.index);
-    }, [item.index, onToggleMaximize]);
-
-    // Get maximization config from the item
-    const maximizationConfig = item.maximizationConfig;
-    const shouldClipOverflow = maximizationConfig?.clipOverflow !== false;
-    const isNaturalMode = maximizationConfig?.mode === "natural";
-
     const style: React.CSSProperties = item.measurement
       ? {
           position: "absolute",
@@ -45,26 +36,12 @@ export const VirtualizedItem = memo(
           left: 0,
           right: 0,
           contain: "layout style",
-          ...(item.isMaximized &&
-            !isNaturalMode && {
-              height: item.measurement.height,
-              ...(shouldClipOverflow && { overflow: "hidden" }),
-            }),
-          ...(item.isMaximized &&
-            isNaturalMode &&
-            shouldClipOverflow && {
-              overflow: "hidden",
-            }),
         }
       : {
           position: "relative", // Use relative positioning until measured
           left: 0,
           right: 0,
           contain: "layout style",
-          ...(item.isMaximized &&
-            shouldClipOverflow && {
-              overflow: "hidden",
-            }),
         };
 
     return (
@@ -79,8 +56,7 @@ export const VirtualizedItem = memo(
           id={item.id}
           content={item.content}
           index={item.index}
-          isMaximized={item.isMaximized}
-          onToggleMaximize={handleToggleMaximize}
+          onScrollToItem={onScrollToItem}
           type={(item.content as any)?.type}
         />
       </div>
