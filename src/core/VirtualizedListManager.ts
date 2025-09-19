@@ -25,6 +25,8 @@ export class VirtualizedListManager<T = any> {
   private subscribers = new Set<() => void>();
   private resizeObserver: ResizeObserver | null = null;
   private containerElement: HTMLElement | null = null;
+  private scrollContainerElement: HTMLElement | null = null;
+  private scrollEventCleanup: (() => void) | null = null;
   private showScrollToTop = false;
   private isInitialized = false;
   private lastKnownScrollTop = 0;
@@ -87,8 +89,9 @@ export class VirtualizedListManager<T = any> {
   }
 
   private setScrollTop(value: number) {
-    if (!this.containerElement) return;
-    this.containerElement.scrollTop = value;
+    const targetElement = this.scrollContainerElement || this.containerElement;
+    if (!targetElement) return;
+    targetElement.scrollTop = value;
   }
 
   private cleanupRemovedItems(oldIds: Set<string>, newIds: Set<string>) {
@@ -170,7 +173,10 @@ export class VirtualizedListManager<T = any> {
       if (itemIndex !== -1) {
         // Estimate position
         const estimatedTop = itemIndex * this.defaultItemHeight;
-        this.containerElement.scrollTop = estimatedTop;
+        const targetElement = this.scrollContainerElement || this.containerElement;
+        if (targetElement) {
+          targetElement.scrollTop = estimatedTop;
+        }
       }
       return;
     }
@@ -202,10 +208,13 @@ export class VirtualizedListManager<T = any> {
     const maxScrollTop = Math.max(0, totalHeight - this.containerHeight);
     targetScrollTop = Math.max(0, Math.min(targetScrollTop, maxScrollTop));
 
-    this.containerElement.scrollTo({
-      top: targetScrollTop,
-      behavior: "smooth",
-    });
+    const targetElement = this.scrollContainerElement || this.containerElement;
+    if (targetElement) {
+      targetElement.scrollTo({
+        top: targetScrollTop,
+        behavior: "smooth",
+      });
+    }
   }
 
   // Rest of the manager methods remain the same...
@@ -239,7 +248,10 @@ export class VirtualizedListManager<T = any> {
 
     this.containerElement = element;
     if (element) {
-      const initialHeight = element.clientHeight;
+      // Use scroll container height if available, otherwise use list container height
+      const initialHeight = this.scrollContainerElement
+        ? this.scrollContainerElement.clientHeight
+        : element.clientHeight;
       this.containerHeight = initialHeight;
 
       this.resizeObserver = new ResizeObserver((entries) => {
@@ -256,12 +268,13 @@ export class VirtualizedListManager<T = any> {
             this.containerHeight = newHeight;
 
             requestAnimationFrame(() => {
-              if (this.containerElement && this.scrollTopRatio > 0) {
+              const targetElement = this.scrollContainerElement || this.containerElement;
+              if (targetElement && this.scrollTopRatio > 0) {
                 const newTotalHeight = this.getTotalHeight();
                 const newScrollTop =
                   this.scrollTopRatio *
                   Math.max(0, newTotalHeight - this.containerHeight);
-                this.containerElement.scrollTop = Math.max(0, newScrollTop);
+                targetElement.scrollTop = Math.max(0, newScrollTop);
               }
             });
 
@@ -270,9 +283,59 @@ export class VirtualizedListManager<T = any> {
         }
       });
 
-      this.resizeObserver.observe(element);
+      // Observe the scroll container if available, otherwise observe the list container
+      const elementToObserve = this.scrollContainerElement || element;
+      this.resizeObserver.observe(elementToObserve);
       this.isInitialized = true;
       this.notify();
+    }
+  }
+
+  setScrollContainer(element: HTMLElement | null) {
+    // Clean up previous scroll event listeners
+    if (this.scrollEventCleanup) {
+      this.scrollEventCleanup();
+      this.scrollEventCleanup = null;
+    }
+
+    this.scrollContainerElement = element;
+
+    if (element) {
+      // Set up scroll event listener for external container
+      const handleExternalScroll = () => {
+        if (!this.containerElement || !this.scrollContainerElement) return;
+
+        // Calculate scroll position relative to the list container
+        const containerRect = this.containerElement.getBoundingClientRect();
+        const scrollRect = this.scrollContainerElement.getBoundingClientRect();
+
+        // Calculate visible area of the list within the scroll container
+        const visibleTop = Math.max(0, scrollRect.top - containerRect.top);
+        const visibleBottom = Math.min(
+          containerRect.height,
+          scrollRect.top + scrollRect.height - containerRect.top
+        );
+
+        // Use scroll container's scrollTop as our scroll position
+        const scrollTop = this.scrollContainerElement.scrollTop;
+        this.handleScroll(scrollTop);
+      };
+
+      // Set up resize observer for scroll container
+      const scrollResizeObserver = new ResizeObserver(() => {
+        handleExternalScroll();
+      });
+
+      element.addEventListener('scroll', handleExternalScroll, { passive: true });
+      scrollResizeObserver.observe(element);
+
+      // Initial scroll calculation
+      handleExternalScroll();
+
+      this.scrollEventCleanup = () => {
+        element.removeEventListener('scroll', handleExternalScroll);
+        scrollResizeObserver.disconnect();
+      };
     }
   }
 
@@ -437,8 +500,9 @@ export class VirtualizedListManager<T = any> {
   }
 
   scrollToTop() {
-    if (this.containerElement) {
-      this.containerElement.scrollTo({
+    const targetElement = this.scrollContainerElement || this.containerElement;
+    if (targetElement) {
+      targetElement.scrollTo({
         top: 0,
         behavior: "smooth",
       });
@@ -592,12 +656,17 @@ export class VirtualizedListManager<T = any> {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
     }
+    if (this.scrollEventCleanup) {
+      this.scrollEventCleanup();
+      this.scrollEventCleanup = null;
+    }
     if (this.dataUnsubscribe) {
       this.dataUnsubscribe();
       this.dataUnsubscribe = null;
     }
     this.subscribers.clear();
     this.containerElement = null;
+    this.scrollContainerElement = null;
     this.isInitialized = false;
   }
 }

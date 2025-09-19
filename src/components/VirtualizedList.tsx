@@ -1,4 +1,4 @@
-import { JSX, memo } from "react";
+import { JSX, memo, RefObject } from "react";
 import { VirtualizedItem } from "./VirtualizedItem";
 import {
   DataProvider,
@@ -15,6 +15,7 @@ interface VirtualizedListProps<T = any> {
   className?: string;
   style?: React.CSSProperties;
   config?: VirtualizedListConfig;
+  scrollContainerRef?: RefObject<HTMLElement>;
 }
 
 export const VirtualizedList = memo(
@@ -25,6 +26,7 @@ export const VirtualizedList = memo(
     className = "",
     style = {},
     config,
+    scrollContainerRef,
   }: VirtualizedListProps<T>) => {
     const {
       containerRef,
@@ -33,7 +35,7 @@ export const VirtualizedList = memo(
       toggleMaximize,
       scrollToTop,
       state,
-    } = useVirtualizedList(dataProvider, config);
+    } = useVirtualizedList(dataProvider, config, scrollContainerRef);
 
     // Prepare merged styles for elements (preserve user-provided `style` and `className` prop)
     const outerStyle: React.CSSProperties = { position: "relative", ...style };
@@ -56,8 +58,8 @@ export const VirtualizedList = memo(
 
     const containerStyle: React.CSSProperties = {
       height: "100%",
-      overflow: "scroll",
-      scrollbarGutter: "stable",
+      overflow: scrollContainerRef ? "visible" : "scroll",
+      scrollbarGutter: scrollContainerRef ? "auto" : "stable",
       overscrollBehavior: state.maximizedItemId ? "contain" : "auto",
       willChange: "scroll-position",
     };
@@ -85,7 +87,11 @@ export const VirtualizedList = memo(
 
     return (
       <div className={className} style={outerStyle}>
-        <div ref={containerRef} onScroll={handleScroll} style={containerStyle}>
+        <div
+          ref={containerRef}
+          onScroll={scrollContainerRef ? undefined : handleScroll}
+          style={containerStyle}
+        >
           <div style={innerStyle}>
             {state.visibleItems.map((item) => (
               <VirtualizedItem

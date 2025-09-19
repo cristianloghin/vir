@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore, RefObject } from "react";
 import { VirtualizedListManager } from "../core/VirtualizedListManager";
 import {
   DataProvider,
@@ -21,7 +21,8 @@ interface ListState<T> {
 // React hook with stable references
 export function useVirtualizedList<T = any>(
   dataProvider: DataProvider<T>,
-  config?: VirtualizedListConfig
+  config?: VirtualizedListConfig,
+  scrollContainerRef?: RefObject<HTMLElement>
 ) {
   const managerRef = useRef<VirtualizedListManager<T>>(null);
   const stateRef = useRef<ListState<T>>(null);
@@ -41,6 +42,13 @@ export function useVirtualizedList<T = any>(
     };
   }, [manager]);
 
+  // Handle external scroll container ref
+  useEffect(() => {
+    if (scrollContainerRef?.current) {
+      manager.setScrollContainer(scrollContainerRef.current);
+    }
+  }, [manager, scrollContainerRef]);
+
   const state = useSyncExternalStore(manager.subscribe, () => {
     const state = manager.getSnapshot();
     if (stateRef.current && isEqual(stateRef.current, state)) {
@@ -54,6 +62,13 @@ export function useVirtualizedList<T = any>(
   const containerRef = useCallback(
     (element: HTMLElement | null) => {
       manager.setContainer(element);
+    },
+    [manager]
+  );
+
+  const scrollContainerCallbackRef = useCallback(
+    (element: HTMLElement | null) => {
+      manager.setScrollContainer(element);
     },
     [manager]
   );
