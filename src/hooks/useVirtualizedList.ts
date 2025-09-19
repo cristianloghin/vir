@@ -8,7 +8,6 @@ import {
 import { VirtualizedListManager } from "../core/VirtualizedListManager";
 import {
   DataProvider,
-  ViewportInfo,
   VisibleItem,
   VirtualizedListConfig,
   MaximizationConfig,
@@ -16,20 +15,19 @@ import {
 import { isEqual } from "../utils";
 
 interface ListState<T> {
-  viewportInfo: ViewportInfo;
   visibleItems: VisibleItem<T>[];
   showScrollToTop: boolean;
-  maximizedItemId: string | null;
+  maximizedItemIndex: number | null;
   isInitialized: boolean;
+  totalHeight: number;
   maximizationConfig: MaximizationConfig;
 }
 
 // React hook with stable references
 export function useVirtualizedList<T = any>(
   dataProvider: DataProvider<T>,
-  internalContainerRef: RefObject<HTMLElement | null>,
   config?: VirtualizedListConfig,
-  scrollContainerRef?: RefObject<HTMLElement>
+  externalContainerRef?: RefObject<HTMLElement>
 ) {
   const managerRef = useRef<VirtualizedListManager<T>>(null);
   const stateRef = useRef<ListState<T>>(null);
@@ -41,6 +39,16 @@ export function useVirtualizedList<T = any>(
 
   const manager = managerRef.current;
 
+  const internalContainerRef = useCallback(
+    (element: HTMLDivElement) => {
+      if (element && !externalContainerRef) {
+        console.debug("setting container to internal");
+        manager.setScrollContainer(element);
+      }
+    },
+    [manager]
+  );
+
   // Initialize and cleanup
   useEffect(() => {
     manager.initialize();
@@ -51,12 +59,10 @@ export function useVirtualizedList<T = any>(
 
   // Handle external scroll container ref
   useEffect(() => {
-    if (scrollContainerRef?.current) {
-      manager.setScrollContainer(scrollContainerRef.current);
-    } else if (internalContainerRef.current) {
-      manager.setScrollContainer(internalContainerRef.current);
+    if (externalContainerRef && externalContainerRef.current) {
+      manager.setScrollContainer(externalContainerRef.current);
     }
-  }, [manager, internalContainerRef, scrollContainerRef]);
+  }, [manager, externalContainerRef?.current]);
 
   const state = useSyncExternalStore(manager.subscribe, () => {
     const state = manager.getSnapshot();
@@ -67,23 +73,16 @@ export function useVirtualizedList<T = any>(
     return state;
   });
 
-  const measureItem = useCallback(
-    (id: string, index: number, height: number) => {
-      manager.measureItem(id, index, height);
-    },
-    [manager]
-  );
-
   const setItemHeight = useCallback(
-    (index: number, height: number) => {
-      manager.setItemHeight(index, height);
+    (id: string, index: number, height: number) => {
+      manager.setItemHeight(id, index, height);
     },
     [manager]
   );
 
   const toggleMaximize = useCallback(
-    (itemId: string, maximizedHeight?: number) => {
-      manager.toggleMaximize(itemId, maximizedHeight);
+    (index: number) => {
+      manager.toggleMaximize(index);
     },
     [manager]
   );
@@ -93,7 +92,7 @@ export function useVirtualizedList<T = any>(
   }, [manager]);
 
   return {
-    measureItem,
+    internalContainerRef,
     setItemHeight,
     toggleMaximize,
     scrollToTop,

@@ -2,13 +2,10 @@ import { ScrollContext, SharedListState } from "../types";
 import { isSubset, setIntersection, setsEqual } from "../utils";
 
 export class TransitionManager {
-  private dataTransitionInProgress = false;
   private lastDataSnapshot: Set<string> = new Set();
   private pendingScrollContext: ScrollContext | null = null;
 
   constructor(
-    private updateMeasurements: () => void,
-    private notify: () => void,
     private getTotalHeight: () => number,
     private scrollToItemById: (id: string) => void,
     private getTotalCount: () => number,
@@ -22,8 +19,6 @@ export class TransitionManager {
   ) {}
 
   public handleDataChange(newDataSnapshot: Set<string>) {
-    this.dataTransitionInProgress = true;
-
     try {
       const oldDataSnapshot = this.lastDataSnapshot;
 
@@ -36,7 +31,7 @@ export class TransitionManager {
       // Handle transition based on type
       switch (transitionType) {
         case "append":
-          this.handleAppendTransition(oldDataSnapshot, newDataSnapshot);
+          this.handleAppendTransition();
           break;
         case "filter":
           this.handleFilterTransition(oldDataSnapshot, newDataSnapshot);
@@ -53,11 +48,8 @@ export class TransitionManager {
       }
 
       this.lastDataSnapshot = newDataSnapshot;
-      this.updateMeasurements();
     } finally {
-      this.dataTransitionInProgress = false;
       this.applyPendingScrollContext();
-      this.notify();
     }
   }
 
@@ -97,7 +89,7 @@ export class TransitionManager {
     return "unknown";
   }
 
-  private handleAppendTransition(oldIds: Set<string>, newIds: Set<string>) {
+  private handleAppendTransition() {
     // Data was appended - maintain scroll position
     // No cleanup needed since all old items still exist
     this.pendingScrollContext = {

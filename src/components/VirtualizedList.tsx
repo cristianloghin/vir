@@ -28,22 +28,22 @@ export const VirtualizedList = memo(
     config,
     scrollContainerRef,
   }: VirtualizedListProps<T>) => {
-    const internalContainerRef = useRef<HTMLDivElement>(null);
-    const { measureItem, setItemHeight, toggleMaximize, scrollToTop, state } =
-      useVirtualizedList(
-        dataProvider,
-        internalContainerRef,
-        config,
-        scrollContainerRef
-      );
+    const {
+      internalContainerRef,
+      setItemHeight,
+      toggleMaximize,
+      scrollToTop,
+      state,
+    } = useVirtualizedList(dataProvider, config, scrollContainerRef);
 
     const itemObserver = new ResizeObserver((entries) => {
       entries.forEach((entry) => {
         const index = (entry.target as HTMLDivElement).dataset.index;
+        const id = (entry.target as HTMLDivElement).dataset.id;
         const newHeight = entry.contentRect.height;
 
-        if (index) {
-          setItemHeight(Number(index), newHeight);
+        if (id && index) {
+          setItemHeight(id, Number(index), newHeight);
         }
       });
     });
@@ -59,7 +59,7 @@ export const VirtualizedList = memo(
       ...style,
     };
 
-    if (state.viewportInfo.totalCount === 0) {
+    if (state.visibleItems.length === 0) {
       return (
         <div className={className} style={emptyStateStyle}>
           No items to display
@@ -71,13 +71,13 @@ export const VirtualizedList = memo(
       height: "100%",
       overflow: scrollContainerRef ? "visible" : "scroll",
       scrollbarGutter: scrollContainerRef ? "auto" : "stable",
-      overscrollBehavior: state.maximizedItemId ? "contain" : "auto",
+      overscrollBehavior: state.maximizedItemIndex ? "contain" : "auto",
       willChange: "scroll-position",
     };
 
     const innerStyle: React.CSSProperties = {
       position: "relative",
-      height: state.viewportInfo.totalHeight,
+      height: state.totalHeight,
       contain: "strict",
     };
 
@@ -105,7 +105,6 @@ export const VirtualizedList = memo(
                 key={item.id}
                 item={item}
                 ItemComponent={ItemComponent}
-                onMeasure={measureItem}
                 onToggleMaximize={toggleMaximize}
                 itemObserver={itemObserver}
               />

@@ -1,19 +1,11 @@
-import {
-  JSX,
-  memo,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-} from "react";
+import { JSX, memo, useCallback, useEffect, useRef } from "react";
 import { VisibleItem, VirtualizedItemComponent } from "../types";
 
 // Memoized item wrapper
 interface VirtualizedItemWrapperProps<T = any> {
   item: VisibleItem<T>;
   ItemComponent: VirtualizedItemComponent<T>;
-  onMeasure: (id: string, index: number, height: number) => void;
-  onToggleMaximize: (id: string, height?: number) => void;
+  onToggleMaximize: (index: number, height?: number) => void;
   itemObserver: ResizeObserver;
 }
 
@@ -21,57 +13,10 @@ export const VirtualizedItem = memo(
   <T,>({
     item,
     ItemComponent,
-    onMeasure,
     onToggleMaximize,
     itemObserver,
   }: VirtualizedItemWrapperProps<T>) => {
     const itemRef = useRef<HTMLDivElement>(null);
-    const lastMeasuredHeight = useRef<number>(0);
-    const resizeObserver = useRef<ResizeObserver>(null);
-
-    useLayoutEffect(() => {
-      if (itemRef.current) {
-        const measureHeight = () => {
-          if (itemRef.current) {
-            const height = itemRef.current.offsetHeight;
-            if (height > 0 && height !== lastMeasuredHeight.current) {
-              lastMeasuredHeight.current = height;
-              onMeasure(item.id, item.index, height);
-            }
-          }
-        };
-
-        measureHeight();
-
-        if (!resizeObserver.current) {
-          resizeObserver.current = new ResizeObserver((entries) => {
-            for (const entry of entries) {
-              const height = entry.contentRect.height;
-              if (height > 0 && height !== lastMeasuredHeight.current) {
-                lastMeasuredHeight.current = height;
-                onMeasure(item.id, item.index, height);
-              }
-            }
-          });
-        }
-
-        resizeObserver.current.observe(itemRef.current);
-
-        return () => {
-          if (resizeObserver.current && itemRef.current) {
-            resizeObserver.current.unobserve(itemRef.current);
-          }
-        };
-      }
-    }, [item.id, item.isMaximized, onMeasure]);
-
-    useEffect(() => {
-      return () => {
-        if (resizeObserver.current) {
-          resizeObserver.current.disconnect();
-        }
-      };
-    }, []);
 
     useEffect(() => {
       const itemElement = itemRef.current;
@@ -85,8 +30,8 @@ export const VirtualizedItem = memo(
     }, []);
 
     const handleToggleMaximize = useCallback(() => {
-      onToggleMaximize(item.id);
-    }, [item.id, onToggleMaximize]);
+      onToggleMaximize(item.index);
+    }, [item.index, onToggleMaximize]);
 
     // Get maximization config from the item
     const maximizationConfig = item.maximizationConfig;
@@ -126,6 +71,7 @@ export const VirtualizedItem = memo(
       <div
         ref={itemRef}
         style={style}
+        data-id={item.id}
         data-index={item.index}
         className="virtualized-item"
       >

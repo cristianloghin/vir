@@ -19,12 +19,8 @@ export interface ItemMeasurement {
 }
 
 export interface ViewportInfo {
-  scrollTop: number;
-  containerHeight: number;
   startIndex: number;
   endIndex: number;
-  totalHeight: number;
-  totalCount: number;
 }
 
 export interface VisibleItem<T = any> {
@@ -34,19 +30,6 @@ export interface VisibleItem<T = any> {
   measurement?: ItemMeasurement;
   isMaximized: boolean;
   maximizationConfig?: MaximizationConfig;
-}
-
-export interface ScrollContext {
-  type: "item" | "ratio" | "top";
-  itemId?: string;
-  scrollRatio?: number;
-}
-
-export interface SharedListState {
-  scrollTopRatio: number;
-  maximizedItemId: string | null;
-  containerElement: HTMLElement | null;
-  containerHeight: number;
 }
 
 export interface MaximizationConfig {
