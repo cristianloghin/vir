@@ -6,12 +6,7 @@ import {
   RefObject,
 } from "react";
 import { VirtualizedListManager } from "../core/VirtualizedListManager";
-import {
-  DataProvider,
-  VisibleItem,
-  VirtualizedListConfig,
-  MaximizationConfig,
-} from "../types";
+import { DataProvider, VisibleItem, VirtualizedListConfig } from "../types";
 import { isEqual } from "../utils";
 
 interface ListState<T> {
@@ -49,9 +44,11 @@ export function useVirtualizedList<T = any>(
 
   // Initialize and cleanup
   useEffect(() => {
-    manager.initialize();
+    const abortController = new AbortController();
+    manager.initialize(abortController.signal);
+
     return () => {
-      manager.dispose();
+      abortController.abort();
     };
   }, [manager]);
 

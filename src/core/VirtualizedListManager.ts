@@ -28,7 +28,6 @@ export class VirtualizedListManager<T = any> {
   private isInitialized = false;
   private lastKnownScrollTop = 0;
   private scrollTopRatio = 0;
-  private notifyScheduled = false;
   private dataUnsubscribe: (() => void) | null = null;
 
   constructor(
@@ -44,51 +43,17 @@ export class VirtualizedListManager<T = any> {
     console.info("🆕 Created VirtualizedListManager", this.uuid);
   }
 
-  private setupDataSubscription() {
-    if (this.dataUnsubscribe) {
-      this.dataUnsubscribe();
+  // ------- Public API -------
+
+  initialize = (extSignal: AbortSignal) => {
+    if (extSignal.aborted) {
+      throw new DOMException("Signal already aborted", "AbortError");
     }
+    console.info("🔧 Initializing manager...", this.uuid);
+    this.setupDataSubscription();
 
-    this.dataUnsubscribe = this.dataProvider.subscribe(() => {
-      this.notify();
-    });
-  }
-
-  scrollToItem = (index: number) => {
-    if (!this.scrollContainerElement) return;
-
-    if (this.offsets[index] === undefined) return;
-
-    const itemTop = this.offsets[index];
-    this.scrollContainerElement.scrollTo({
-      top: itemTop,
-      behavior: "smooth",
-    });
+    extSignal.addEventListener("abort", this.dispose, { once: true });
   };
-
-  // Rest of the manager methods remain the same...
-  subscribe = (callback: () => void) => {
-    this.subscribers.add(callback);
-    return () => {
-      this.subscribers.delete(callback);
-    };
-  };
-
-  private notify() {
-    if (!this.notifyScheduled) {
-      this.notifyScheduled = true;
-      Promise.resolve().then(() => {
-        this.notifyScheduled = false;
-        this.subscribers.forEach((callback) => {
-          try {
-            callback();
-          } catch (error) {
-            console.error("Error in virtualized list subscriber:", error);
-          }
-        });
-      });
-    }
-  }
 
   setScrollContainer(element: HTMLElement) {
     // Clean up previous scroll event listeners
@@ -159,6 +124,35 @@ export class VirtualizedListManager<T = any> {
     }
   }
 
+  setItemHeight = (id: string, index: number, height: number) => {
+    if (height !== this.heights[index]) {
+      this.heights[index] = height;
+      this.buildOffsets(index);
+    }
+  };
+
+  scrollToTop = () => {
+    const targetElement = this.scrollContainerElement;
+    if (targetElement) {
+      targetElement.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    }
+  };
+
+  scrollToItem = (index: number) => {
+    if (!this.scrollContainerElement) return;
+
+    if (this.offsets[index] === undefined) return;
+
+    const itemTop = this.offsets[index];
+    this.scrollContainerElement.scrollTo({
+      top: itemTop,
+      behavior: "smooth",
+    });
+  };
+
   handleScroll = (scrollTop: number) => {
     if (Math.abs(scrollTop - this.lastKnownScrollTop) < 1) {
       return;
@@ -177,12 +171,17 @@ export class VirtualizedListManager<T = any> {
     this.notify();
   };
 
-  setItemHeight = (id: string, index: number, height: number) => {
-    if (height !== this.heights[index]) {
-      this.heights[index] = height;
-      this.buildOffsets(index);
+  // ------- Private methods -------
+
+  private setupDataSubscription() {
+    if (this.dataUnsubscribe) {
+      this.dataUnsubscribe();
     }
-  };
+
+    this.dataUnsubscribe = this.dataProvider.subscribe(() => {
+      this.notify();
+    });
+  }
 
   private buildOffsets = (fromIndex: number = 0) => {
     const heightsLength = this.heights.length;
@@ -245,16 +244,6 @@ export class VirtualizedListManager<T = any> {
     const totalGaps = Math.max(0, totalCount - 1) * this.gap;
     return totalCount * this.defaultItemHeight + totalGaps;
   };
-
-  scrollToTop() {
-    const targetElement = this.scrollContainerElement;
-    if (targetElement) {
-      targetElement.scrollTo({
-        top: 0,
-        behavior: "smooth",
-      });
-    }
-  }
 
   private getViewportInfo = (): ViewportInfo => {
     const totalCount = this.dataProvider.getTotalCount();
@@ -328,6 +317,21 @@ export class VirtualizedListManager<T = any> {
     }
   };
 
+  // ------- React integration -------
+
+  subscribe = (callback: () => void) => {
+    this.subscribers.add(callback);
+    return () => {
+      this.subscribers.delete(callback);
+    };
+  };
+
+  private notify() {
+    this.subscribers.forEach((callback) => {
+      callback();
+    });
+  }
+
   getSnapshot = () => {
     try {
       return {
@@ -347,12 +351,9 @@ export class VirtualizedListManager<T = any> {
     }
   };
 
-  initialize() {
-    console.info("🔧 Initializing manager...", this.uuid);
-    this.setupDataSubscription();
-  }
+  // ------- Cleanup -------
 
-  dispose() {
+  private dispose = () => {
     console.info("🧹 Cleaning up the list...", this.uuid);
 
     if (this.resizeObserver) {
@@ -370,5 +371,5 @@ export class VirtualizedListManager<T = any> {
     this.subscribers.clear();
     this.scrollContainerElement = null;
     this.isInitialized = false;
-  }
+  };
 }
