@@ -7,6 +7,7 @@ import {
 
 export class VirtualizedListManager<T = any> {
   private uuid: string;
+  private store: Record<string, unknown> = {};
 
   private dataProvider: DataProvider<T>;
   private defaultItemHeight: number;
@@ -171,6 +172,11 @@ export class VirtualizedListManager<T = any> {
     this.notify();
   };
 
+  storeValue = (key: string, value: unknown) => {
+    this.store[key] = value;
+    this.notify();
+  };
+
   // ------- Private methods -------
 
   private setupDataSubscription() {
@@ -179,6 +185,7 @@ export class VirtualizedListManager<T = any> {
     }
 
     this.dataUnsubscribe = this.dataProvider.subscribe(() => {
+      this.store = {};
       this.notify();
     });
   }
@@ -339,6 +346,7 @@ export class VirtualizedListManager<T = any> {
         totalHeight: this.getTotalHeight(),
         showScrollToTop: this.showScrollToTop,
         isInitialized: this.isInitialized,
+        store: { ...this.store },
       };
     } catch (error) {
       console.error("Error getting snapshot:", error);
@@ -347,6 +355,7 @@ export class VirtualizedListManager<T = any> {
         showScrollToTop: false,
         isInitialized: false,
         totalHeight: 0,
+        store: {},
       };
     }
   };

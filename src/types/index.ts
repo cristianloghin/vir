@@ -80,8 +80,12 @@ export interface VirtualizedItemProps<TContent = any> {
   index: number;
   /** Function to scroll to item */
   onScrollToItem: (index: number) => void;
+  /** Function to persist an arbitrary value in the list */
+  onStoreValue: (key: string, value: unknown) => void;
   /** Optional type/category of the item */
   type?: string;
+  /** Value store */
+  store: Record<string, unknown>;
 }
 
 // Type for item components that follow the correct interface

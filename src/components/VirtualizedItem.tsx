@@ -4,16 +4,20 @@ import { VisibleItem, VirtualizedItemComponent } from "../types";
 // Memoized item wrapper
 interface VirtualizedItemWrapperProps<T = any> {
   item: VisibleItem<T>;
+  store: Record<string, unknown>;
   ItemComponent: VirtualizedItemComponent<T>;
   onScrollToItem: (index: number) => void;
+  onStoreValue: (key: string, value: unknown) => void;
   itemObserver: ResizeObserver;
 }
 
 export const VirtualizedItem = memo(
   <T,>({
     item,
+    store,
     ItemComponent,
     onScrollToItem,
+    onStoreValue,
     itemObserver,
   }: VirtualizedItemWrapperProps<T>) => {
     const itemRef = useRef<HTMLDivElement>(null);
@@ -57,6 +61,8 @@ export const VirtualizedItem = memo(
           content={item.content}
           index={item.index}
           onScrollToItem={onScrollToItem}
+          onStoreValue={onStoreValue}
+          store={store}
           type={(item.content as any)?.type}
         />
       </div>

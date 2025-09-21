@@ -33,6 +33,7 @@ export const VirtualizedList = memo(
       setItemHeight,
       scrollToItem,
       scrollToTop,
+      storeValue,
       state,
     } = useVirtualizedList(dataProvider, config, scrollContainerRef);
 
@@ -103,8 +104,10 @@ export const VirtualizedList = memo(
               <VirtualizedItem
                 key={item.id}
                 item={item}
+                store={state.store}
                 ItemComponent={ItemComponent}
                 onScrollToItem={scrollToItem}
+                onStoreValue={storeValue}
                 itemObserver={itemObserver}
               />
             ))}

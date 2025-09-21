@@ -14,6 +14,7 @@ interface ListState<T> {
   showScrollToTop: boolean;
   isInitialized: boolean;
   totalHeight: number;
+  store: Record<string, unknown>;
 }
 
 // React hook with stable references
@@ -75,6 +76,13 @@ export function useVirtualizedList<T = any>(
     [manager]
   );
 
+  const storeValue = useCallback(
+    (key: string, value: unknown) => {
+      manager.storeValue(key, value);
+    },
+    [manager]
+  );
+
   const scrollToItem = useCallback(
     (index: number) => {
       manager.scrollToItem(index);
@@ -89,6 +97,7 @@ export function useVirtualizedList<T = any>(
   return {
     internalContainerRef,
     setItemHeight,
+    storeValue,
     scrollToItem,
     scrollToTop,
     state,
