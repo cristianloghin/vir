@@ -9,8 +9,7 @@ export interface DataProvider<T = any> {
   getData: (startIndex: number, endIndex: number) => ListItem<T>[];
   getTotalCount: () => number;
   getItemById?: (id: string) => ListItem<T> | null;
-  // New method to get all current item IDs efficiently
-  getCurrentItemIds?: () => Set<string>;
+  getCurrentItemIds: () => Set<string>;
 }
 
 export interface ItemMeasurement {

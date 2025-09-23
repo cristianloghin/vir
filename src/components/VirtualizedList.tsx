@@ -1,4 +1,4 @@
-import { JSX, memo, RefObject, useRef } from "react";
+import { JSX, memo, RefObject, useEffect, useRef } from "react";
 import { VirtualizedItem } from "./VirtualizedItem";
 import {
   DataProvider,
@@ -37,17 +37,30 @@ export const VirtualizedList = memo(
       state,
     } = useVirtualizedList(dataProvider, config, scrollContainerRef);
 
-    const itemObserver = new ResizeObserver((entries) => {
-      entries.forEach((entry) => {
-        const index = (entry.target as HTMLDivElement).dataset.index;
-        const id = (entry.target as HTMLDivElement).dataset.id;
-        const newHeight = entry.contentRect.height;
+    const itemObserverRef = useRef<ResizeObserver | null>(null);
 
-        if (id && index) {
-          setItemHeight(id, Number(index), newHeight);
-        }
+    if (!itemObserverRef.current && typeof ResizeObserver !== "undefined") {
+      itemObserverRef.current = new ResizeObserver((entries) => {
+        entries.forEach((entry) => {
+          const index = (entry.target as HTMLDivElement).dataset.index;
+          const id = (entry.target as HTMLDivElement).dataset.id;
+          const newHeight = entry.contentRect.height;
+
+          if (id && index) {
+            setItemHeight(id, Number(index), newHeight);
+          }
+        });
       });
-    });
+    }
+
+    useEffect(() => {
+      return () => {
+        itemObserverRef.current?.disconnect();
+        itemObserverRef.current = null;
+      };
+    }, []);
+
+    const itemObserver = itemObserverRef.current;
 
     // Prepare merged styles for elements (preserve user-provided `style` and `className` prop)
     const outerStyle: React.CSSProperties = { position: "relative", ...style };
@@ -108,7 +121,7 @@ export const VirtualizedList = memo(
                 ItemComponent={ItemComponent}
                 onScrollToItem={scrollToItem}
                 onStoreValue={storeValue}
-                itemObserver={itemObserver}
+                itemObserver={itemObserver!}
               />
             ))}
           </div>

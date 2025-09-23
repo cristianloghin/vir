@@ -182,6 +182,7 @@ export class VirtualizedListManager<T = any> {
   private setupDataSubscription() {
     if (this.dataUnsubscribe) {
       this.dataUnsubscribe();
+      this.dataUnsubscribe = null;
     }
 
     this.dataUnsubscribe = this.dataProvider.subscribe(() => {
@@ -201,7 +202,8 @@ export class VirtualizedListManager<T = any> {
 
     // Use a single loop with direct array access
     for (let i = fromIndex; i < heightsLength; i++) {
-      offset += this.heights[i] + this.gap;
+      const h = this.heights[i] && this.defaultItemHeight;
+      offset += h + this.gap;
       this.offsets[i + 1] = offset;
     }
 
@@ -213,6 +215,7 @@ export class VirtualizedListManager<T = any> {
   private findFirstVisible = (scrollTop: number) => {
     let left = 0,
       right = this.offsets.length - 1;
+
     while (left < right) {
       const mid = Math.floor((left + right) / 2);
       if (this.offsets[mid] < scrollTop) {

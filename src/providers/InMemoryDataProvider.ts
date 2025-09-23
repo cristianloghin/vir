@@ -5,9 +5,7 @@ export class InMemoryDataProvider<T = any> implements DataProvider<T> {
   private items: ListItem<T>[] = [];
   private subscribers = new Set<() => void>();
 
-  constructor(items: ListItem<T>[] = []) {
-    this.items = [...items];
-  }
+  constructor() {}
 
   subscribe = (callback: () => void) => {
     this.subscribers.add(callback);
@@ -70,5 +68,9 @@ export class InMemoryDataProvider<T = any> implements DataProvider<T> {
     const idsSet = new Set(ids);
     this.items = this.items.filter((item) => !idsSet.has(item.id));
     this.notify();
+  }
+
+  getCurrentItemIds() {
+    return new Set(this.items.map(({ id }) => id));
   }
 }
