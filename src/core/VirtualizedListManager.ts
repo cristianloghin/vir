@@ -7,6 +7,7 @@ import {
   MaximizationConfig,
 } from "../types";
 import { setDifference } from "../utils";
+import { ScrollContainer } from "./ScrollContainer";
 import { TransitionManager } from "./TransitionManager";
 
 export class VirtualizedListManager<T = any> {
@@ -18,35 +19,27 @@ export class VirtualizedListManager<T = any> {
   private gap: number;
 
   private containerHeight = 0;
-  private scrollTop = 0;
   private maximizedItemId: string | null = null;
   private maximizedHeight = 0;
   private overscan = 5;
   private subscribers = new Set<() => void>();
-  private resizeObserver: ResizeObserver | null = null;
-  private containerElement: HTMLElement | null = null;
-  private scrollContainerElement: HTMLElement | null = null;
-  private scrollEventCleanup: (() => void) | null = null;
-  private showScrollToTop = false;
+
   private isInitialized = false;
-  private lastKnownScrollTop = 0;
-  private scrollTopRatio = 0;
   private notifyScheduled = false;
   private dataUnsubscribe: (() => void) | null = null;
 
   // Configuration
-  private config: VirtualizedListConfig;
   private maximizationConfig: MaximizationConfig;
 
   // New properties for data transition handling
   private transitionManager: TransitionManager;
+  private scrollContainer: ScrollContainer;
 
   constructor(
     dataProvider: DataProvider<T>,
     config: VirtualizedListConfig = {}
   ) {
     this.dataProvider = dataProvider;
-    this.config = config;
 
     this.defaultItemHeight = config.defaultItemHeight ?? 100;
     this.gap = config.gap ?? 0;
@@ -63,13 +56,20 @@ export class VirtualizedListManager<T = any> {
     this.setupDataSubscription();
     this.captureDataSnapshot();
 
+    this.scrollContainer = new ScrollContainer(
+      this.dataProvider,
+      this.notify,
+      this.getTotalHeight,
+      this.defaultItemHeight
+    );
+
     this.transitionManager = new TransitionManager(
       this.updateMeasurements.bind(this),
-      this.notify.bind(this),
-      this.getTotalHeight.bind(this),
+      this.notify,
+      this.getTotalHeight,
       this.scrollToItemById.bind(this),
       this.dataProvider.getTotalCount,
-      this.getListState.bind(this),
+      this.getListState,
       this.setScrollTop.bind(this),
       this.clearMaximization.bind(this),
       this.cleanupRemovedItems.bind(this)
@@ -79,20 +79,18 @@ export class VirtualizedListManager<T = any> {
     console.info("🆕 Created VirtualizedListManager", this.uuid);
   }
 
-  private getListState() {
+  private getListState = () => {
     return {
-      scrollTopRatio: this.scrollTopRatio,
+      scrollTopRatio: this.scrollContainer.getRatio(),
       maximizedItemId: this.maximizedItemId,
-      containerElement: this.containerElement,
+      containerElement: this.scrollContainer.getContainer(),
       containerHeight: this.containerHeight,
     };
-  }
+  };
 
-  private setScrollTop(value: number) {
-    const targetElement = this.scrollContainerElement || this.containerElement;
-    if (!targetElement) return;
-    targetElement.scrollTop = value;
-  }
+  private setScrollTop = (value: number) => {
+    this.scrollContainer.setScrollTop(value);
+  };
 
   private cleanupRemovedItems(oldIds: Set<string>, newIds: Set<string>) {
     const removedIds = setDifference(oldIds, newIds);
@@ -160,62 +158,9 @@ export class VirtualizedListManager<T = any> {
   };
 
   private scrollToItemById(itemId: string) {
-    if (!this.containerElement) return;
-
     const measurement = this.measurements.get(itemId);
-    if (!measurement) {
-      // Item not measured yet - try to find its index and estimate position
-      const totalCount = this.dataProvider.getTotalCount();
-      const sampleSize = Math.min(totalCount, 100);
-      const items = this.dataProvider.getData(0, sampleSize - 1);
-      const itemIndex = items.findIndex((item) => item.id === itemId);
-
-      if (itemIndex !== -1) {
-        // Estimate position
-        const estimatedTop = itemIndex * this.defaultItemHeight;
-        const targetElement =
-          this.scrollContainerElement || this.containerElement;
-        if (targetElement) {
-          targetElement.scrollTop = estimatedTop;
-        }
-      }
-      return;
-    }
-
-    // Scroll to center the item if it's maximized, otherwise just make it visible
-    const itemTop = measurement.top;
-    const itemHeight = measurement.height;
-    const viewTop = this.scrollTop;
-    const viewBottom = viewTop + this.containerHeight;
-
-    let targetScrollTop;
-
-    if (itemId === this.maximizedItemId) {
-      // Center the maximized item
-      targetScrollTop = itemTop - (this.containerHeight - itemHeight) / 2;
-    } else {
-      // Just make it visible
-      if (itemTop < viewTop) {
-        targetScrollTop = itemTop;
-      } else if (itemTop + itemHeight > viewBottom) {
-        targetScrollTop = itemTop + itemHeight - this.containerHeight;
-      } else {
-        // Already visible
-        return;
-      }
-    }
-
-    const totalHeight = this.getTotalHeight();
-    const maxScrollTop = Math.max(0, totalHeight - this.containerHeight);
-    targetScrollTop = Math.max(0, Math.min(targetScrollTop, maxScrollTop));
-
-    const targetElement = this.scrollContainerElement || this.containerElement;
-    if (targetElement) {
-      targetElement.scrollTo({
-        top: targetScrollTop,
-        behavior: "smooth",
-      });
-    }
+    const isMaximized = itemId === this.maximizedItemId;
+    this.scrollContainer.scrollToItemById(itemId, isMaximized, measurement);
   }
 
   subscribe = (callback: () => void) => {
@@ -225,7 +170,7 @@ export class VirtualizedListManager<T = any> {
     };
   };
 
-  private notify() {
+  private notify = () => {
     if (!this.notifyScheduled) {
       this.notifyScheduled = true;
       Promise.resolve().then(() => {
@@ -239,126 +184,16 @@ export class VirtualizedListManager<T = any> {
         });
       });
     }
-  }
+  };
 
-  setContainer(element: HTMLElement | null) {
-    if (this.resizeObserver) {
-      this.resizeObserver.disconnect();
-    }
+  setScrollContainer = (element: HTMLElement) => {
+    this.scrollContainer.init(element);
+    this.isInitialized = true;
+  };
 
-    this.containerElement = element;
-    if (element) {
-      // Use scroll container height if available, otherwise use list container height
-      const initialHeight = this.scrollContainerElement
-        ? this.scrollContainerElement.clientHeight
-        : element.clientHeight;
-      this.containerHeight = initialHeight;
-
-      this.resizeObserver = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          const newHeight = entry.contentRect.height;
-          if (newHeight !== this.containerHeight && newHeight > 0) {
-            const oldTotalHeight = this.getTotalHeight();
-            if (oldTotalHeight > 0) {
-              this.scrollTopRatio =
-                this.scrollTop /
-                Math.max(1, oldTotalHeight - this.containerHeight);
-            }
-
-            this.containerHeight = newHeight;
-
-            requestAnimationFrame(() => {
-              const targetElement =
-                this.scrollContainerElement || this.containerElement;
-              if (targetElement && this.scrollTopRatio > 0) {
-                const newTotalHeight = this.getTotalHeight();
-                const newScrollTop =
-                  this.scrollTopRatio *
-                  Math.max(0, newTotalHeight - this.containerHeight);
-                targetElement.scrollTop = Math.max(0, newScrollTop);
-              }
-            });
-
-            this.notify();
-          }
-        }
-      });
-
-      // Observe the scroll container if available, otherwise observe the list container
-      const elementToObserve = this.scrollContainerElement || element;
-      this.resizeObserver.observe(elementToObserve);
-      this.isInitialized = true;
-      this.notify();
-    }
-  }
-
-  setScrollContainer(element: HTMLElement | null) {
-    // Clean up previous scroll event listeners
-    if (this.scrollEventCleanup) {
-      this.scrollEventCleanup();
-      this.scrollEventCleanup = null;
-    }
-
-    this.scrollContainerElement = element;
-
-    if (element) {
-      // Set up scroll event listener for external container
-      const handleExternalScroll = () => {
-        if (!this.containerElement || !this.scrollContainerElement) return;
-
-        // Calculate scroll position relative to the list container
-        const containerRect = this.containerElement.getBoundingClientRect();
-        const scrollRect = this.scrollContainerElement.getBoundingClientRect();
-
-        // Calculate visible area of the list within the scroll container
-        const visibleTop = Math.max(0, scrollRect.top - containerRect.top);
-        const visibleBottom = Math.min(
-          containerRect.height,
-          scrollRect.top + scrollRect.height - containerRect.top
-        );
-
-        // Use scroll container's scrollTop as our scroll position
-        const scrollTop = this.scrollContainerElement.scrollTop;
-        this.handleScroll(scrollTop);
-      };
-
-      // Set up resize observer for scroll container
-      const scrollResizeObserver = new ResizeObserver(() => {
-        handleExternalScroll();
-      });
-
-      element.addEventListener("scroll", handleExternalScroll, {
-        passive: true,
-      });
-      scrollResizeObserver.observe(element);
-
-      // Initial scroll calculation
-      handleExternalScroll();
-
-      this.scrollEventCleanup = () => {
-        element.removeEventListener("scroll", handleExternalScroll);
-        scrollResizeObserver.disconnect();
-      };
-    }
-  }
-
-  handleScroll(scrollTop: number) {
-    if (Math.abs(scrollTop - this.lastKnownScrollTop) < 1) {
-      return;
-    }
-
-    this.scrollTop = scrollTop;
-    this.lastKnownScrollTop = scrollTop;
-    this.showScrollToTop = scrollTop > 200;
-
-    const totalHeight = this.getTotalHeight();
-    if (totalHeight > this.containerHeight) {
-      this.scrollTopRatio =
-        scrollTop / Math.max(1, totalHeight - this.containerHeight);
-    }
-
-    this.notify();
-  }
+  handleScroll = (scrollTop: number) => {
+    this.scrollContainer.handleScroll(scrollTop);
+  };
 
   measureItem(id: string, index: number, height: number) {
     if (height <= 0) return;
@@ -421,7 +256,7 @@ export class VirtualizedListManager<T = any> {
     }
   }
 
-  private getTotalHeight(): number {
+  private getTotalHeight = (): number => {
     const totalCount = this.dataProvider.getTotalCount();
 
     if (this.measurements.size === 0) {
@@ -442,7 +277,7 @@ export class VirtualizedListManager<T = any> {
     const totalGaps = Math.max(0, totalCount - 1) * this.gap;
 
     return totalHeight + unmeasuredHeight + totalGaps;
-  }
+  };
 
   toggleMaximize(itemId: string, customMaximizedHeight?: number) {
     if (this.maximizedItemId === itemId) {
@@ -502,15 +337,9 @@ export class VirtualizedListManager<T = any> {
     }
   }
 
-  scrollToTop() {
-    const targetElement = this.scrollContainerElement || this.containerElement;
-    if (targetElement) {
-      targetElement.scrollTo({
-        top: 0,
-        behavior: "smooth",
-      });
-    }
-  }
+  scrollToTop = () => {
+    this.scrollContainer.scrollToTop();
+  };
 
   getViewportInfo(): ViewportInfo {
     const totalCount = this.dataProvider.getTotalCount();
@@ -534,9 +363,9 @@ export class VirtualizedListManager<T = any> {
 
     if (this.measurements.size > 0 && totalCount > 0) {
       const overscanHeight = this.overscan * this.defaultItemHeight;
-      const viewportTop = this.scrollTop - overscanHeight;
-      const viewportBottom =
-        this.scrollTop + this.containerHeight + overscanHeight;
+      const scrollTop = this.scrollContainer.getScrollTop();
+      const viewportTop = scrollTop - overscanHeight;
+      const viewportBottom = scrollTop + this.containerHeight + overscanHeight;
 
       // Walk through measurements to find visible range
       startIndex = totalCount;
@@ -573,7 +402,7 @@ export class VirtualizedListManager<T = any> {
     }
 
     return {
-      scrollTop: this.scrollTop,
+      scrollTop: this.scrollContainer.getScrollTop(),
       containerHeight: this.containerHeight,
       startIndex: Math.max(0, startIndex),
       endIndex: Math.min(totalCount - 1, endIndex),
@@ -621,7 +450,7 @@ export class VirtualizedListManager<T = any> {
       return {
         viewportInfo: this.getViewportInfo(),
         visibleItems: this.getVisibleItems(),
-        showScrollToTop: this.showScrollToTop,
+        showScrollToTop: this.scrollContainer.getShowScroll(),
         maximizedItemId: this.maximizedItemId,
         isInitialized: this.isInitialized,
         maximizationConfig: this.maximizationConfig,
@@ -655,21 +484,13 @@ export class VirtualizedListManager<T = any> {
   dispose() {
     console.info("🧹 Cleaning up the list...", this.uuid);
 
-    if (this.resizeObserver) {
-      this.resizeObserver.disconnect();
-      this.resizeObserver = null;
-    }
-    if (this.scrollEventCleanup) {
-      this.scrollEventCleanup();
-      this.scrollEventCleanup = null;
-    }
+    this.scrollContainer.cleanup();
+
     if (this.dataUnsubscribe) {
       this.dataUnsubscribe();
       this.dataUnsubscribe = null;
     }
     this.subscribers.clear();
-    this.containerElement = null;
-    this.scrollContainerElement = null;
     this.isInitialized = false;
   }
 }
