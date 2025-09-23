@@ -173,7 +173,8 @@ export class VirtualizedListManager<T = any> {
       if (itemIndex !== -1) {
         // Estimate position
         const estimatedTop = itemIndex * this.defaultItemHeight;
-        const targetElement = this.scrollContainerElement || this.containerElement;
+        const targetElement =
+          this.scrollContainerElement || this.containerElement;
         if (targetElement) {
           targetElement.scrollTop = estimatedTop;
         }
@@ -217,7 +218,6 @@ export class VirtualizedListManager<T = any> {
     }
   }
 
-  // Rest of the manager methods remain the same...
   subscribe = (callback: () => void) => {
     this.subscribers.add(callback);
     return () => {
@@ -268,7 +268,8 @@ export class VirtualizedListManager<T = any> {
             this.containerHeight = newHeight;
 
             requestAnimationFrame(() => {
-              const targetElement = this.scrollContainerElement || this.containerElement;
+              const targetElement =
+                this.scrollContainerElement || this.containerElement;
               if (targetElement && this.scrollTopRatio > 0) {
                 const newTotalHeight = this.getTotalHeight();
                 const newScrollTop =
@@ -326,14 +327,16 @@ export class VirtualizedListManager<T = any> {
         handleExternalScroll();
       });
 
-      element.addEventListener('scroll', handleExternalScroll, { passive: true });
+      element.addEventListener("scroll", handleExternalScroll, {
+        passive: true,
+      });
       scrollResizeObserver.observe(element);
 
       // Initial scroll calculation
       handleExternalScroll();
 
       this.scrollEventCleanup = () => {
-        element.removeEventListener('scroll', handleExternalScroll);
+        element.removeEventListener("scroll", handleExternalScroll);
         scrollResizeObserver.disconnect();
       };
     }

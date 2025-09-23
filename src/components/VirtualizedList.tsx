@@ -1,4 +1,4 @@
-import { JSX, memo, RefObject } from "react";
+import { JSX, memo, RefObject, useEffect, useRef } from "react";
 import { VirtualizedItem } from "./VirtualizedItem";
 import {
   DataProvider,
@@ -36,6 +36,30 @@ export const VirtualizedList = memo(
       scrollToTop,
       state,
     } = useVirtualizedList(dataProvider, config, scrollContainerRef);
+
+    const itemObserverRef = useRef<ResizeObserver | null>(null);
+
+    if (!itemObserverRef.current) {
+      itemObserverRef.current = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const height = entry.contentRect.height;
+          const id = (entry.target as HTMLDivElement).dataset.id;
+          const index = (entry.target as HTMLDivElement).dataset.index;
+          if (id && index) {
+            measureItem(id, Number(index), height);
+          }
+        }
+      });
+    }
+
+    useEffect(() => {
+      return () => {
+        itemObserverRef.current?.disconnect();
+        itemObserverRef.current = null;
+      };
+    }, []);
+
+    const itemObserver = itemObserverRef.current;
 
     // Prepare merged styles for elements (preserve user-provided `style` and `className` prop)
     const outerStyle: React.CSSProperties = { position: "relative", ...style };
@@ -98,8 +122,8 @@ export const VirtualizedList = memo(
                 key={item.id}
                 item={item}
                 ItemComponent={ItemComponent}
-                onMeasure={measureItem}
                 onToggleMaximize={toggleMaximize}
+                itemObserver={itemObserver!}
               />
             ))}
           </div>
