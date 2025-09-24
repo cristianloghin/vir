@@ -183,6 +183,7 @@ export class ScrollContainer {
   };
 
   getContainer = () => this.scrollContainerElement;
+  getContainerHeight = () => this.containerHeight;
   getScrollTop = () => this.scrollTop;
   getRatio = () => this.scrollTopRatio;
   getShowScroll = () => this.showScrollToTop;
