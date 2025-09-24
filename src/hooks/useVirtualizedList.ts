@@ -6,23 +6,8 @@ import {
   RefObject,
 } from "react";
 import { VirtualizedListManager } from "../core/VirtualizedListManager";
-import {
-  DataProvider,
-  ViewportInfo,
-  VisibleItem,
-  VirtualizedListConfig,
-  MaximizationConfig,
-} from "../types";
+import { DataProvider, VirtualizedListConfig, ListState } from "../types";
 import { isEqual } from "../utils";
-
-interface ListState<T> {
-  viewportInfo: ViewportInfo;
-  visibleItems: VisibleItem<T>[];
-  showScrollToTop: boolean;
-  maximizedItemId: string | null;
-  isInitialized: boolean;
-  maximizationConfig: MaximizationConfig;
-}
 
 // React hook with stable references
 export function useVirtualizedList<T = any>(
@@ -52,9 +37,11 @@ export function useVirtualizedList<T = any>(
 
   // Initialize and cleanup
   useEffect(() => {
-    manager.initialize();
+    const abortController = new AbortController();
+    manager.initialize(abortController.signal);
+
     return () => {
-      manager.dispose();
+      abortController.abort();
     };
   }, [manager]);
 

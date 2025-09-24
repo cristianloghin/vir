@@ -118,3 +118,21 @@ export interface VirtualizedItemProps<TContent = any> {
 export type VirtualizedItemComponent<TContent = any> = React.ComponentType<
   VirtualizedItemProps<TContent>
 >;
+
+export interface ListState<T> {
+  viewportInfo: ViewportInfo;
+  visibleItems: VisibleItem<T>[];
+  showScrollToTop: boolean;
+  maximizedItemId: string | null;
+  isInitialized: boolean;
+}
+export interface VirtualizedListInterface<T> {
+  measureItem(id: string, index: number, height: number): void;
+  toggleMaximize(itemId: string, maximizedHeight?: number): void;
+  setScrollContainer(element: HTMLElement): void;
+  handleScroll(scrollTop: number): void;
+  scrollToTop(): void;
+  initialize(signal: AbortSignal): void;
+  subscribe(callback: () => void): () => void;
+  getSnapshot(): ListState<T>;
+}

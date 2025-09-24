@@ -4,12 +4,16 @@ import {
   VisibleItem,
   VirtualizedListConfig,
   MaximizationConfig,
+  VirtualizedListInterface,
+  ListState,
 } from "../types";
 import { Measurements } from "./Measurements";
 import { ScrollContainer } from "./ScrollContainer";
 import { TransitionManager } from "./TransitionManager";
 
-export class VirtualizedListManager<T = any> {
+export class VirtualizedListManager<T = any>
+  implements VirtualizedListInterface<T>
+{
   private uuid: string;
 
   private dataProvider: DataProvider<T>;
@@ -86,6 +90,8 @@ export class VirtualizedListManager<T = any> {
     console.info("🆕 Created VirtualizedListManager", this.uuid);
   }
 
+  // Public methods
+
   measureItem = (id: string, index: number, height: number) => {
     this.measurements.measureItem(id, index, height);
   };
@@ -93,6 +99,68 @@ export class VirtualizedListManager<T = any> {
   toggleMaximize = (itemId: string, maximizedHeight?: number) => {
     this.measurements.toggleMaximize(itemId, maximizedHeight);
   };
+
+  setScrollContainer = (element: HTMLElement) => {
+    this.scrollContainer.init(element);
+    this.isInitialized = true;
+  };
+
+  handleScroll = (scrollTop: number) => {
+    this.scrollContainer.handleScroll(scrollTop);
+  };
+
+  scrollToTop = () => {
+    this.scrollContainer.scrollToTop();
+  };
+
+  initialize = (abortSignal: AbortSignal) => {
+    if (abortSignal.aborted) {
+      throw new DOMException("Signal already aborted", "AbortError");
+    }
+
+    abortSignal.addEventListener("abort", this.dispose, { once: true });
+
+    this.setupDataSubscription();
+    this.captureDataSnapshot();
+    console.info("🔧 Initialized virtualized list with id:", this.uuid);
+  };
+
+  subscribe = (callback: () => void) => {
+    this.subscribers.add(callback);
+    return () => {
+      this.subscribers.delete(callback);
+    };
+  };
+
+  getSnapshot = (): ListState<T> => {
+    try {
+      return {
+        viewportInfo: this.getViewportInfo(),
+        visibleItems: this.getVisibleItems(),
+        showScrollToTop: this.scrollContainer.getShowScroll(),
+        maximizedItemId: this.measurements.getMaximizedItemId(),
+        isInitialized: this.isInitialized,
+      };
+    } catch (error) {
+      console.error("Error getting snapshot:", error);
+      return {
+        viewportInfo: {
+          scrollTop: 0,
+          containerHeight: 0,
+          startIndex: 0,
+          endIndex: 0,
+          totalHeight: 0,
+          totalCount: 0,
+        },
+        visibleItems: [],
+        showScrollToTop: false,
+        maximizedItemId: null,
+        isInitialized: false,
+      };
+    }
+  };
+
+  // Private methods
 
   private getListState = () => {
     return {
@@ -157,13 +225,6 @@ export class VirtualizedListManager<T = any> {
     this.scrollContainer.scrollToItemById(itemId, isMaximized, measurement);
   };
 
-  subscribe = (callback: () => void) => {
-    this.subscribers.add(callback);
-    return () => {
-      this.subscribers.delete(callback);
-    };
-  };
-
   private notify = () => {
     if (!this.notifyScheduled) {
       this.notifyScheduled = true;
@@ -180,20 +241,7 @@ export class VirtualizedListManager<T = any> {
     }
   };
 
-  setScrollContainer = (element: HTMLElement) => {
-    this.scrollContainer.init(element);
-    this.isInitialized = true;
-  };
-
-  handleScroll = (scrollTop: number) => {
-    this.scrollContainer.handleScroll(scrollTop);
-  };
-
-  scrollToTop = () => {
-    this.scrollContainer.scrollToTop();
-  };
-
-  getViewportInfo(): ViewportInfo {
+  private getViewportInfo = (): ViewportInfo => {
     const totalCount = this.dataProvider.getTotalCount();
 
     if (!this.isInitialized || totalCount === 0) {
@@ -262,9 +310,9 @@ export class VirtualizedListManager<T = any> {
       totalHeight,
       totalCount,
     };
-  }
+  };
 
-  getVisibleItems(): VisibleItem<T>[] {
+  private getVisibleItems = (): VisibleItem<T>[] => {
     try {
       const { startIndex, endIndex, totalCount } = this.getViewportInfo();
 
@@ -292,49 +340,9 @@ export class VirtualizedListManager<T = any> {
       console.error("Error getting visible items:", error);
       return [];
     }
-  }
-
-  getMaximizationConfig(): MaximizationConfig {
-    return this.maximizationConfig;
-  }
-
-  getSnapshot = () => {
-    try {
-      return {
-        viewportInfo: this.getViewportInfo(),
-        visibleItems: this.getVisibleItems(),
-        showScrollToTop: this.scrollContainer.getShowScroll(),
-        maximizedItemId: this.measurements.getMaximizedItemId(),
-        isInitialized: this.isInitialized,
-        maximizationConfig: this.maximizationConfig,
-      };
-    } catch (error) {
-      console.error("Error getting snapshot:", error);
-      return {
-        viewportInfo: {
-          scrollTop: 0,
-          containerHeight: 0,
-          startIndex: 0,
-          endIndex: 0,
-          totalHeight: 0,
-          totalCount: 0,
-        },
-        visibleItems: [],
-        showScrollToTop: false,
-        maximizedItemId: null,
-        isInitialized: false,
-        maximizationConfig: this.maximizationConfig,
-      };
-    }
   };
 
-  initialize() {
-    console.info("🔧 Initializing manager...", this.uuid);
-    this.setupDataSubscription();
-    this.captureDataSnapshot();
-  }
-
-  dispose() {
+  private dispose = () => {
     console.info("🧹 Cleaning up the list...", this.uuid);
 
     this.scrollContainer.cleanup();
@@ -345,5 +353,5 @@ export class VirtualizedListManager<T = any> {
     }
     this.subscribers.clear();
     this.isInitialized = false;
-  }
+  };
 }
