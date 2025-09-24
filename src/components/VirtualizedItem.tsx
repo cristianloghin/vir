@@ -71,7 +71,13 @@ export const VirtualizedItem = memo(
         };
 
     return (
-      <div ref={itemRef} style={style} className="virtualized-item">
+      <div
+        ref={itemRef}
+        style={style}
+        className="virtualized-item"
+        data-id={item.id}
+        data-index={item.index}
+      >
         <ItemComponent
           id={item.id}
           content={item.content}
