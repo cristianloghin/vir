@@ -44,13 +44,7 @@ export class Measurements {
 
     // Batch fetch all items instead of individual calls
     const allItems = this.dataProvider.getData(0, totalCount - 1);
-    const isRealData = !allItems.some((item) =>
-      item.id.startsWith("__placeholder-")
-    );
-
-    if (isRealData) {
-      this.cleanupPlaceholderMeasurements();
-    }
+    this.cleanupPlaceholderMeasurements();
 
     let currentTop = 0;
 
@@ -137,64 +131,30 @@ export class Measurements {
   };
 
   private cleanupPlaceholderMeasurements = () => {
-    const keysToRemove: string[] = [];
-
-    this.measurements.forEach((_, key) => {
-      if (key.startsWith("__placeholder-") || key.startsWith("__error-")) {
-        keysToRemove.push(key);
-      }
-    });
-
-    keysToRemove.forEach((key) => {
-      this.measurements.delete(key);
-    });
-
-    if (keysToRemove.length > 0) {
-      console.info(
-        `🧹 Cleaned up ${keysToRemove.length} placeholder measurements`
-      );
-      // Force recalculation of positions after cleanup
-      this.updateMeasurements();
-    }
+    const keysToRemove = Array.from(this.measurements.keys()).filter(
+      (k) => k.startsWith("__placeholder-") || k.startsWith("__error-")
+    );
+    keysToRemove.forEach((k) => this.measurements.delete(k));
   };
 
   private calculateMaximizedHeight(customHeight?: number): number {
-    const config = this.maximizationConfig;
-
-    // Custom height takes precedence
-    if (customHeight) {
-      return customHeight;
+    if (customHeight) return customHeight;
+    if (this.maximizationConfig.mode === "natural") return 0;
+    if (this.maximizationConfig.mode === "custom") {
+      return (
+        this.maximizationConfig.maxHeight || this.getContainerHeight() * 0.8
+      );
     }
 
     const containerHeight = this.getContainerHeight();
+    const percentage = this.maximizationConfig.containerPercentage || 0.8;
+    const neighborSpace = this.maximizationConfig.neighborSpace || 120;
 
-    switch (config.mode) {
-      case "natural":
-        // Return 0 to indicate natural height should be used
-        return 0;
-
-      case "custom":
-        return config.maxHeight || containerHeight * 0.8;
-
-      case "percentage":
-        const percentage = config.containerPercentage || 0.8;
-
-        let maxHeight = containerHeight * percentage;
-        const neighborSpace = config.neighborSpace ?? 120;
-        if (maxHeight > containerHeight - neighborSpace) {
-          maxHeight = containerHeight - neighborSpace;
-        }
-        return Math.max(maxHeight, 200);
-
-      case "fixed":
-      default:
-        let fixedHeight = containerHeight * (config.containerPercentage || 0.8);
-        const space = config.neighborSpace ?? 120;
-        if (fixedHeight > containerHeight - space) {
-          fixedHeight = containerHeight - space;
-        }
-        return Math.max(fixedHeight, 200);
+    let height = containerHeight * percentage;
+    if (height > containerHeight - neighborSpace) {
+      height = containerHeight - neighborSpace;
     }
+    return Math.max(height, 200);
   }
 
   clearMaximization = () => {
