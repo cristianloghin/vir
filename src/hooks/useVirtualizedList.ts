@@ -1,22 +1,13 @@
-import { useCallback, useEffect, useRef, useSyncExternalStore, RefObject } from "react";
-import { VirtualizedListManager } from "../core/VirtualizedListManager";
 import {
-  DataProvider,
-  ViewportInfo,
-  VisibleItem,
-  VirtualizedListConfig,
-  MaximizationConfig,
-} from "../types";
+  useCallback,
+  useEffect,
+  useRef,
+  useSyncExternalStore,
+  RefObject,
+} from "react";
+import { VirtualizedListManager } from "../core/VirtualizedListManager";
+import { DataProvider, VirtualizedListConfig, ListState } from "../types";
 import { isEqual } from "../utils";
-
-interface ListState<T> {
-  viewportInfo: ViewportInfo;
-  visibleItems: VisibleItem<T>[];
-  showScrollToTop: boolean;
-  maximizedItemId: string | null;
-  isInitialized: boolean;
-  maximizationConfig: MaximizationConfig;
-}
 
 // React hook with stable references
 export function useVirtualizedList<T = any>(
@@ -34,11 +25,23 @@ export function useVirtualizedList<T = any>(
 
   const manager = managerRef.current;
 
+  // Stable callback refs
+  const containerRef = useCallback(
+    (element: HTMLElement | null) => {
+      if (element && !scrollContainerRef) {
+        manager.setScrollContainer(element);
+      }
+    },
+    [manager]
+  );
+
   // Initialize and cleanup
   useEffect(() => {
-    manager.initialize();
+    const abortController = new AbortController();
+    manager.initialize(abortController.signal);
+
     return () => {
-      manager.dispose();
+      abortController.abort();
     };
   }, [manager]);
 
@@ -47,7 +50,7 @@ export function useVirtualizedList<T = any>(
     if (scrollContainerRef?.current) {
       manager.setScrollContainer(scrollContainerRef.current);
     }
-  }, [manager, scrollContainerRef]);
+  }, [manager, scrollContainerRef?.current]);
 
   const state = useSyncExternalStore(manager.subscribe, () => {
     const state = manager.getSnapshot();
@@ -57,21 +60,6 @@ export function useVirtualizedList<T = any>(
     stateRef.current = state;
     return state;
   });
-
-  // Stable callback refs
-  const containerRef = useCallback(
-    (element: HTMLElement | null) => {
-      manager.setContainer(element);
-    },
-    [manager]
-  );
-
-  const scrollContainerCallbackRef = useCallback(
-    (element: HTMLElement | null) => {
-      manager.setScrollContainer(element);
-    },
-    [manager]
-  );
 
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLElement>) => {
