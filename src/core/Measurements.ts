@@ -24,6 +24,7 @@ export class Measurements {
       !existingMeasurement || Math.abs(existingMeasurement.height - height) > 1;
 
     if (hasChanged) {
+      console.debug("set item height", id, index, height);
       this.measurements.set(id, { height, top: 0 });
 
       // Update measurements immediately to prevent overlaps on first render

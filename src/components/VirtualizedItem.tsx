@@ -30,7 +30,7 @@ export const VirtualizedItem = memo(
           }
         };
       }
-    }, [item.id, item.isMaximized, itemObserver]);
+    }, [itemObserver]);
 
     const handleToggleMaximize = useCallback(() => {
       onToggleMaximize(item.id);

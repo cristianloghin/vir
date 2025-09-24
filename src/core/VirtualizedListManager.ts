@@ -74,10 +74,10 @@ export class VirtualizedListManager<T = any> {
       this.updateMeasurements,
       this.notify,
       this.getTotalHeight,
-      this.scrollToItemById.bind(this),
+      this.scrollToItemById,
       this.dataProvider.getTotalCount,
       this.getListState,
-      this.setScrollTop.bind(this),
+      this.setScrollTop,
       this.clearMaximization,
       this.cleanupRemovedItems
     );
@@ -151,11 +151,11 @@ export class VirtualizedListManager<T = any> {
     return new Set(sampleItems.map((item) => item.id));
   };
 
-  private scrollToItemById(itemId: string) {
+  private scrollToItemById = (itemId: string) => {
     const measurement = this.measurements.getMeasurementById(itemId);
     const isMaximized = itemId === this.measurements.getMaximizedItemId();
     this.scrollContainer.scrollToItemById(itemId, isMaximized, measurement);
-  }
+  };
 
   subscribe = (callback: () => void) => {
     this.subscribers.add(callback);
