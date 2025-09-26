@@ -31,17 +31,6 @@ export class InMemoryDataProvider<T = any> implements DataProvider<T> {
 
   getOrderedIds = () => this.items.map(({ id }) => id);
 
-  getData(startIndex: number, endIndex: number): ListItem<T>[] {
-    const safeStart = Math.max(0, startIndex);
-    const safeEnd = Math.min(this.items.length - 1, endIndex);
-
-    if (safeStart > safeEnd || safeStart >= this.items.length) {
-      return [];
-    }
-
-    return this.items.slice(safeStart, safeEnd + 1);
-  }
-
   getTotalCount(): number {
     return this.items.length;
   }

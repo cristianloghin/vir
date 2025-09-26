@@ -117,27 +117,13 @@ export class VirtualizedListManager<T = any>
   };
 
   getSnapshot = (): ListState<T> => {
-    try {
-      return {
-        viewportInfo: this.getViewportInfo(),
-        visibleItems: this.getVisibleItems(),
-        showScrollToTop: this.scrollContainer.getShowScroll(),
-        maximizedItemId: this.measurements.getMaximizedItemId(),
-        isInitialized: this.isInitialized,
-      };
-    } catch (error) {
-      console.error("Error getting snapshot:", error);
-      return {
-        viewportInfo: {
-          totalHeight: 0,
-          totalCount: 0,
-        },
-        visibleItems: [],
-        showScrollToTop: false,
-        maximizedItemId: null,
-        isInitialized: false,
-      };
-    }
+    return {
+      viewportInfo: this.getViewportInfo(),
+      visibleItems: this.getVisibleItems(),
+      showScrollToTop: this.scrollContainer.getShowScroll(),
+      maximizedItemId: this.measurements.getMaximizedItemId(),
+      isInitialized: this.isInitialized,
+    };
   };
 
   // Private methods
@@ -156,9 +142,8 @@ export class VirtualizedListManager<T = any>
     }
 
     this.dataUnsubscribe = this.dataProvider.subscribe(() => {
-      const orderedIds = this.dataProvider.getOrderedIds();
       this.measurements.startNewVersion();
-      this.measurements.buildMeasurements(orderedIds);
+      this.measurements.buildMeasurements();
     });
   };
 

@@ -25,7 +25,6 @@ export class Measurements {
       !existingMeasurement || Math.abs(existingMeasurement.height - height) > 1;
 
     if (hasChanged) {
-      console.debug("measure item", id, height);
       const top = existingMeasurement?.top ?? 0;
       const measurement: ItemMeasurement = {
         height,
@@ -34,36 +33,12 @@ export class Measurements {
         lastUsed: Date.now(),
       };
       this.measurements.set(id, measurement);
-
-      // Update measurements immediately to prevent overlaps on first render
-      this.updateMeasurements(id, top + height + this.gap);
-
-      // Also schedule async update for performance
-      requestAnimationFrame(() => {
-        this.updateMeasurements(id, top + height + this.gap);
-        this.notify();
-      });
+      this.buildMeasurements();
     }
   };
 
-  updateMeasurements = (itemId: string, itemTop: number) => {
+  buildMeasurements = () => {
     const orderedIds = this.dataProvider.getOrderedIds();
-    const itemIndex = orderedIds.findIndex((i) => i === itemId);
-
-    const itemsToUpdate = orderedIds.slice(itemIndex + 1);
-    let currentTop = itemTop;
-
-    for (const id of itemsToUpdate) {
-      const measurement = this.measurements.get(id);
-      if (measurement) {
-        measurement.top = currentTop;
-        measurement.lastUsed = Date.now();
-        currentTop += measurement.height + this.gap;
-      }
-    }
-  };
-
-  buildMeasurements = (orderedIds: string[]) => {
     let currentTop = 0;
 
     for (const id of orderedIds) {
@@ -85,8 +60,10 @@ export class Measurements {
       }
     }
 
-    this.cleanupStaleMeasurements();
-    this.notify();
+    requestAnimationFrame(() => {
+      this.cleanupStaleMeasurements();
+      this.notify();
+    });
   };
 
   private cleanupStaleMeasurements = () => {
@@ -129,22 +106,19 @@ export class Measurements {
   };
 
   toggleMaximize = (itemId: string, customMaximizedHeight?: number) => {
+    const measurement = this.measurements.get(itemId);
+    if (measurement) {
+      const height = this.calculateMaximizedHeight(customMaximizedHeight);
+      measurement.height = height;
+      this.buildMeasurements();
+    }
+
     if (this.maximizedItemId === itemId) {
       this.maximizedItemId = null;
     } else {
       this.maximizedItemId = itemId;
-      requestAnimationFrame(() => {
-        this.scrollToItemById(itemId);
-      });
+      this.scrollToItemById(itemId);
     }
-
-    const measurement = this.measurements.get(itemId);
-    const top = measurement?.top ?? 0;
-
-    // Calculate height based on configuration
-    const height = this.calculateMaximizedHeight(customMaximizedHeight);
-    this.updateMeasurements(itemId, top + height + this.gap);
-    this.notify();
   };
 
   private calculateMaximizedHeight(customHeight?: number): number {
@@ -160,7 +134,7 @@ export class Measurements {
     const percentage = this.maximizationConfig.containerPercentage || 0.8;
     const neighborSpace = this.maximizationConfig.neighborSpace || 120;
 
-    let height = containerHeight * percentage;
+    let height = Math.round(containerHeight * percentage);
     if (height > containerHeight - neighborSpace) {
       height = containerHeight - neighborSpace;
     }

@@ -9,10 +9,6 @@ export interface DataProvider<T = any> {
   getOrderedIds: () => string[];
   getItemById: (id: string) => ListItem<T> | null;
   getTotalCount: () => number;
-
-  getData: (startIndex: number, endIndex: number) => ListItem<T>[];
-  // New method to get all current item IDs efficiently
-  getCurrentItemIds?: () => Set<string>;
 }
 
 export interface ItemMeasurement {
@@ -68,17 +64,8 @@ export interface PlaceholderContent {
   index: number;
 }
 
-export interface ErrorContent {
-  __isError: true;
-  error: string;
-  originalError: Error;
-}
-
 // Union type for all possible content states
-export type ItemContentState<TContent = any> =
-  | TContent
-  | PlaceholderContent
-  | ErrorContent;
+export type ItemContentState<TContent = any> = TContent | PlaceholderContent;
 
 // Type guards for content state
 export const isPlaceholderContent = (
@@ -87,14 +74,10 @@ export const isPlaceholderContent = (
   return content && content.__isPlaceholder === true;
 };
 
-export const isErrorContent = (content: any): content is ErrorContent => {
-  return content && content.__isError === true;
-};
-
 export const isRealContent = <TContent>(
   content: ItemContentState<TContent>
 ): content is TContent => {
-  return !isPlaceholderContent(content) && !isErrorContent(content);
+  return !isPlaceholderContent(content);
 };
 
 // Item component props interface

@@ -115,9 +115,8 @@ export class ScrollContainer {
     if (!this.scrollContainerElement) return;
 
     if (!measurement) {
-      const totalCount = this.dataProvider.getTotalCount();
-      const items = this.dataProvider.getData(0, Math.min(totalCount, 100) - 1);
-      const itemIndex = items.findIndex((item) => item.id === itemId);
+      const orderedIds = this.dataProvider.getOrderedIds();
+      const itemIndex = orderedIds.findIndex((id) => id === itemId);
 
       if (itemIndex !== -1) {
         this.scrollToPosition(itemIndex * this.defaultItemHeight, false);
