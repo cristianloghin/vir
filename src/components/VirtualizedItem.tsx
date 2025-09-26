@@ -76,12 +76,10 @@ export const VirtualizedItem = memo(
         style={style}
         className="virtualized-item"
         data-id={item.id}
-        data-index={item.index}
       >
         <ItemComponent
           id={item.id}
           content={item.content}
-          index={item.index}
           isMaximized={item.isMaximized}
           onToggleMaximize={handleToggleMaximize}
           type={(item.content as any)?.type}

@@ -69,8 +69,8 @@ export function useVirtualizedList<T = any>(
   );
 
   const measureItem = useCallback(
-    (id: string, index: number, height: number) => {
-      manager.measureItem(id, index, height);
+    (id: string, height: number) => {
+      manager.measureItem(id, height);
     },
     [manager]
   );

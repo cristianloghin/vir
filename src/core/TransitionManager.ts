@@ -27,6 +27,8 @@ export class TransitionManager {
     try {
       const oldDataSnapshot = this.lastDataSnapshot;
 
+      console.info(oldDataSnapshot, newDataSnapshot);
+
       // Determine transition type
       const transitionType = this.analyzeDataTransition(
         oldDataSnapshot,

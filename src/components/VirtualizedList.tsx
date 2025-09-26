@@ -1,4 +1,4 @@
-import { JSX, memo, RefObject, useEffect, useRef } from "react";
+import { JSX, memo, RefObject, useEffect, useMemo, useRef } from "react";
 import { VirtualizedItem } from "./VirtualizedItem";
 import {
   DataProvider,
@@ -44,9 +44,8 @@ export const VirtualizedList = memo(
         for (const entry of entries) {
           const height = entry.contentRect.height;
           const id = (entry.target as HTMLDivElement).dataset.id;
-          const index = (entry.target as HTMLDivElement).dataset.index;
-          if (id && index) {
-            measureItem(id, Number(index), height);
+          if (id) {
+            measureItem(id, height);
           }
         }
       });
@@ -109,6 +108,45 @@ export const VirtualizedList = memo(
       zIndex: 1000,
     };
 
+    const innerContent = (
+      <div style={innerStyle}>
+        {state.visibleItems.map((item) => (
+          <VirtualizedItem
+            key={item.id}
+            item={item}
+            ItemComponent={ItemComponent}
+            onToggleMaximize={toggleMaximize}
+            itemObserver={itemObserver!}
+          />
+        ))}
+      </div>
+    );
+
+    const scrollButton = state.showScrollToTop ? (
+      ScrollTopComponent ? (
+        <ScrollTopComponent scrollTop={scrollToTop} />
+      ) : (
+        <button
+          onClick={scrollToTop}
+          aria-label="Scroll to top"
+          style={scrollToTopButtonStyle}
+        >
+          ↑
+        </button>
+      )
+    ) : null;
+
+    if (scrollContainerRef) {
+      return (
+        <>
+          <div className={className} style={outerStyle}>
+            {innerContent}
+          </div>
+          {scrollButton}
+        </>
+      );
+    }
+
     return (
       <div className={className} style={outerStyle}>
         <div
@@ -116,32 +154,9 @@ export const VirtualizedList = memo(
           onScroll={scrollContainerRef ? undefined : handleScroll}
           style={containerStyle}
         >
-          <div style={innerStyle}>
-            {state.visibleItems.map((item) => (
-              <VirtualizedItem
-                key={item.id}
-                item={item}
-                ItemComponent={ItemComponent}
-                onToggleMaximize={toggleMaximize}
-                itemObserver={itemObserver!}
-              />
-            ))}
-          </div>
+          {innerContent}
         </div>
-
-        {state.showScrollToTop ? (
-          ScrollTopComponent ? (
-            <ScrollTopComponent scrollTop={scrollToTop} />
-          ) : (
-            <button
-              onClick={scrollToTop}
-              aria-label="Scroll to top"
-              style={scrollToTopButtonStyle}
-            >
-              ↑
-            </button>
-          )
-        ) : null}
+        {scrollButton}
       </div>
     );
   }

@@ -76,8 +76,9 @@ export class ScrollContainer {
       // Initial scroll calculation
       handleExternalScroll();
 
+      this.scrollContainerElement.style = `overflow: scroll; will-change: scroll-position; scrollbar-gutter: stable; overscroll-behavior: contain`;
+
       this.resizeObserver.observe(this.scrollContainerElement);
-      // this.isInitialized = true;
       this.notify();
 
       this.scrollEventCleanup = () => {

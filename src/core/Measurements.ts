@@ -1,10 +1,9 @@
 import { DataProvider, ItemMeasurement, MaximizationConfig } from "../types";
-import { setDifference } from "../utils";
 
 export class Measurements {
   private measurements = new Map<string, ItemMeasurement>();
   private maximizedItemId: string | null = null;
-  private maximizedHeight = 0;
+  private currentVersion = 0;
 
   constructor(
     private dataProvider: DataProvider,
@@ -16,7 +15,9 @@ export class Measurements {
     private gap: number
   ) {}
 
-  measureItem = (id: string, index: number, height: number) => {
+  startNewVersion = () => this.currentVersion++;
+
+  measureItem = (id: string, height: number) => {
     if (height <= 0) return;
 
     const existingMeasurement = this.measurements.get(id);
@@ -24,70 +25,85 @@ export class Measurements {
       !existingMeasurement || Math.abs(existingMeasurement.height - height) > 1;
 
     if (hasChanged) {
-      console.debug("set item height", id, index, height);
-      this.measurements.set(id, { height, top: 0 });
+      console.debug("measure item", id, height);
+      const top = existingMeasurement?.top ?? 0;
+      const measurement: ItemMeasurement = {
+        height,
+        top,
+        version: this.currentVersion,
+        lastUsed: Date.now(),
+      };
+      this.measurements.set(id, measurement);
 
       // Update measurements immediately to prevent overlaps on first render
-      this.updateMeasurements();
+      this.updateMeasurements(id, top + height + this.gap);
 
       // Also schedule async update for performance
       requestAnimationFrame(() => {
-        this.updateMeasurements();
+        this.updateMeasurements(id, top + height + this.gap);
         this.notify();
       });
     }
   };
 
-  updateMeasurements = () => {
-    const totalCount = this.dataProvider.getTotalCount();
-    if (totalCount === 0) return;
+  updateMeasurements = (itemId: string, itemTop: number) => {
+    const orderedIds = this.dataProvider.getOrderedIds();
+    const itemIndex = orderedIds.findIndex((i) => i === itemId);
 
-    // Batch fetch all items instead of individual calls
-    const allItems = this.dataProvider.getData(0, totalCount - 1);
-    this.cleanupPlaceholderMeasurements();
+    const itemsToUpdate = orderedIds.slice(itemIndex + 1);
+    let currentTop = itemTop;
 
-    let currentTop = 0;
-
-    for (let i = 0; i < allItems.length; i++) {
-      const item = allItems[i];
-      const existingMeasurement = this.measurements.get(item.id);
-
-      let height = existingMeasurement?.height || this.defaultItemHeight;
-
-      // For natural mode, don't override height - let the component measure itself
-      if (
-        item.id === this.maximizedItemId &&
-        this.maximizedHeight > 0 &&
-        this.maximizationConfig.mode !== "natural"
-      ) {
-        height = this.maximizedHeight;
+    for (const id of itemsToUpdate) {
+      const measurement = this.measurements.get(id);
+      if (measurement) {
+        measurement.top = currentTop;
+        measurement.lastUsed = Date.now();
+        currentTop += measurement.height + this.gap;
       }
-
-      this.measurements.set(item.id, {
-        height,
-        top: currentTop,
-      });
-
-      currentTop += height + (i < allItems.length - 1 ? this.gap : 0);
     }
   };
 
-  cleanupRemovedItems = (oldIds: Set<string>, newIds: Set<string>) => {
-    const removedIds = setDifference(oldIds, newIds);
+  buildMeasurements = (orderedIds: string[]) => {
+    let currentTop = 0;
 
-    for (const removedId of removedIds) {
-      this.measurements.delete(removedId);
+    for (const id of orderedIds) {
+      const measurement = this.measurements.get(id);
+
+      if (measurement) {
+        measurement.top = currentTop;
+        measurement.lastUsed = Date.now();
+        measurement.version = this.currentVersion;
+        currentTop += measurement.height + this.gap;
+      } else {
+        this.measurements.set(id, {
+          height: this.defaultItemHeight,
+          top: currentTop,
+          version: this.currentVersion,
+          lastUsed: Date.now(),
+        });
+        currentTop += this.defaultItemHeight + this.gap;
+      }
     }
 
-    if (removedIds.size > 0) {
-      console.log(
-        `Cleaned up measurements for ${removedIds.size} removed items`
-      );
+    this.cleanupStaleMeasurements();
+    this.notify();
+  };
+
+  private cleanupStaleMeasurements = () => {
+    const cutoff = Date.now() - 60000;
+    for (const [id, measurement] of this.measurements) {
+      if (
+        measurement.version < this.currentVersion - 1 ||
+        measurement.lastUsed < cutoff
+      ) {
+        this.measurements.delete(id);
+      }
     }
   };
 
   getTotalHeight = (): number => {
-    const totalCount = this.dataProvider.getTotalCount();
+    const orderedIds = this.dataProvider.getOrderedIds();
+    const totalCount = orderedIds.length;
 
     if (this.measurements.size === 0) {
       const totalGaps = Math.max(0, totalCount - 1) * this.gap;
@@ -97,10 +113,13 @@ export class Measurements {
     let totalHeight = 0;
     let measuredItems = 0;
 
-    this.measurements.forEach((measurement) => {
-      totalHeight += measurement.height;
-      measuredItems++;
-    });
+    for (const id of orderedIds) {
+      const measurement = this.measurements.get(id);
+      if (measurement && measurement.version === this.currentVersion) {
+        totalHeight += measurement.height;
+        measuredItems++;
+      }
+    }
 
     const unmeasuredItems = totalCount - measuredItems;
     const unmeasuredHeight = unmeasuredItems * this.defaultItemHeight;
@@ -112,29 +131,20 @@ export class Measurements {
   toggleMaximize = (itemId: string, customMaximizedHeight?: number) => {
     if (this.maximizedItemId === itemId) {
       this.maximizedItemId = null;
-      this.maximizedHeight = 0;
     } else {
       this.maximizedItemId = itemId;
-
-      // Calculate height based on configuration
-      this.maximizedHeight = this.calculateMaximizedHeight(
-        customMaximizedHeight
-      );
-
       requestAnimationFrame(() => {
         this.scrollToItemById(itemId);
       });
     }
 
-    this.updateMeasurements();
-    this.notify();
-  };
+    const measurement = this.measurements.get(itemId);
+    const top = measurement?.top ?? 0;
 
-  private cleanupPlaceholderMeasurements = () => {
-    const keysToRemove = Array.from(this.measurements.keys()).filter(
-      (k) => k.startsWith("__placeholder-") || k.startsWith("__error-")
-    );
-    keysToRemove.forEach((k) => this.measurements.delete(k));
+    // Calculate height based on configuration
+    const height = this.calculateMaximizedHeight(customMaximizedHeight);
+    this.updateMeasurements(itemId, top + height + this.gap);
+    this.notify();
   };
 
   private calculateMaximizedHeight(customHeight?: number): number {
@@ -159,11 +169,16 @@ export class Measurements {
 
   clearMaximization = () => {
     this.maximizedItemId = null;
-    this.maximizedHeight = 0;
   };
 
   getMeasurements = () => this.measurements;
   getSize = () => this.measurements.size;
-  getMeasurementById = (id: string) => this.measurements.get(id);
+  getMeasurementById = (id: string) => {
+    const measurement = this.measurements.get(id);
+    if (measurement && measurement.version === this.currentVersion) {
+      return measurement;
+    }
+    return;
+  };
   getMaximizedItemId = () => this.maximizedItemId;
 }

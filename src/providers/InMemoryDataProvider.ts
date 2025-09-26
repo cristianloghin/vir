@@ -5,9 +5,7 @@ export class InMemoryDataProvider<T = any> implements DataProvider<T> {
   private items: ListItem<T>[] = [];
   private subscribers = new Set<() => void>();
 
-  constructor(items: ListItem<T>[] = []) {
-    this.items = [...items];
-  }
+  constructor() {}
 
   subscribe = (callback: () => void) => {
     this.subscribers.add(callback);
@@ -30,6 +28,8 @@ export class InMemoryDataProvider<T = any> implements DataProvider<T> {
     this.items = [...items];
     this.notify();
   }
+
+  getOrderedIds = () => this.items.map(({ id }) => id);
 
   getData(startIndex: number, endIndex: number): ListItem<T>[] {
     const safeStart = Math.max(0, startIndex);

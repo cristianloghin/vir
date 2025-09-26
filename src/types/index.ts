@@ -6,9 +6,11 @@ export interface ListItem<T = any> {
 
 export interface DataProvider<T = any> {
   subscribe: (callback: () => void) => () => void;
-  getData: (startIndex: number, endIndex: number) => ListItem<T>[];
+  getOrderedIds: () => string[];
+  getItemById: (id: string) => ListItem<T> | null;
   getTotalCount: () => number;
-  getItemById?: (id: string) => ListItem<T> | null;
+
+  getData: (startIndex: number, endIndex: number) => ListItem<T>[];
   // New method to get all current item IDs efficiently
   getCurrentItemIds?: () => Set<string>;
 }
@@ -16,13 +18,11 @@ export interface DataProvider<T = any> {
 export interface ItemMeasurement {
   height: number;
   top: number;
+  version: number;
+  lastUsed: number;
 }
 
 export interface ViewportInfo {
-  scrollTop: number;
-  containerHeight: number;
-  startIndex: number;
-  endIndex: number;
   totalHeight: number;
   totalCount: number;
 }
@@ -30,7 +30,6 @@ export interface ViewportInfo {
 export interface VisibleItem<T = any> {
   id: string;
   content: T;
-  index: number;
   measurement?: ItemMeasurement;
   isMaximized: boolean;
   maximizationConfig?: MaximizationConfig;
@@ -104,8 +103,6 @@ export interface VirtualizedItemProps<TContent = any> {
   id: string;
   /** The actual data content, placeholder, or error state */
   content: ItemContentState<TContent>;
-  /** Current index in the virtualized list */
-  index: number;
   /** Whether this item is currently maximized/expanded */
   isMaximized: boolean;
   /** Function to toggle the maximized state */
