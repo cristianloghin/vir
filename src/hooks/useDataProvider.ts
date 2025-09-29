@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { DataProvider } from "../providers";
+import { DataProvider } from "../core/DataProvider";
 import { DataProviderInterface, DataProviderOptions } from "../types";
 
 export function useDataProvider<TData = unknown, TTransformed = TData>(
@@ -33,6 +33,7 @@ export function useDataProvider<TData = unknown, TTransformed = TData>(
 
   // Update selector when it changes
   useEffect(() => {
+    if (!provider) return;
     provider.updateSelector(memoizedSelector);
   }, [memoizedSelector, provider]);
 
