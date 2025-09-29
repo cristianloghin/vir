@@ -1,4 +1,4 @@
-import { JSX, memo, RefObject, useEffect, useRef } from "react";
+import { JSX, memo, RefObject, useEffect, useRef, useMemo } from "react";
 import { VirtualizedItem } from "./VirtualizedItem";
 import {
   VirtualizedListConfig,
@@ -18,15 +18,15 @@ interface VirtualizedListProps<TData = unknown, TTransformed = TData> {
 }
 
 export const VirtualizedList = memo(
-  <T,>({
+  <TData, TTransformed = TData>({
     dataProvider,
     ItemComponent,
     ScrollTopComponent,
     className = "",
     style = {},
-    config,
     scrollContainerRef,
-  }: VirtualizedListProps<T>) => {
+    config,
+  }: VirtualizedListProps<TData, TTransformed>) => {
     const {
       containerRef,
       handleScroll,
@@ -159,4 +159,6 @@ export const VirtualizedList = memo(
       </div>
     );
   }
-) as <T>(props: VirtualizedListProps<T>) => JSX.Element;
+) as <TData, TTransformed = TData>(
+  props: VirtualizedListProps<TData, TTransformed>
+) => JSX.Element;
