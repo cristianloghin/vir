@@ -1,14 +1,47 @@
-export interface ListItem<T = any> {
+export interface ListItem<T = unknown> {
   id: string;
   type?: string;
   content: T;
 }
 
-export interface DataProvider<T = any> {
+export interface DataProviderInterface<TData = unknown, TTransformed = TData> {
   subscribe: (callback: () => void) => () => void;
+  updateRawData: (
+    items: ListItem<TData>[],
+    isLoading: boolean,
+    error: Error | null
+  ) => void;
+  updateSelector: (
+    selector: SelectorFunction<TData, TTransformed> | null
+  ) => void;
   getOrderedIds: () => string[];
-  getItemById: (id: string) => ListItem<T> | null;
+  getItemById: (id: string) => ListItem<TTransformed> | null;
   getTotalCount: () => number;
+  getState: () => {
+    isLoading: boolean;
+    error: Error | null;
+    rawItemCount: number;
+    selectedItemCount: number;
+    hasSelector: boolean;
+    subscriberCount: number;
+  };
+}
+
+export type SelectorFunction<TData, TTransformed = TData> = (
+  allItems: ListItem<TData>[]
+) => ListItem<TTransformed>[];
+
+export interface DataProviderOptions<TData, TTransformed = TData> {
+  // Data transformation (applied before selector)
+  transformData: (data: TData[]) => ListItem<TData>[];
+
+  // Selector pattern
+  selector?: SelectorFunction<TData, TTransformed>;
+  dependencies?: readonly unknown[];
+
+  // Placeholder behavior
+  placeholderCount?: number;
+  showPlaceholders?: boolean;
 }
 
 export interface ItemMeasurement {
@@ -23,7 +56,7 @@ export interface ViewportInfo {
   totalCount: number;
 }
 
-export interface VisibleItem<T = any> {
+export interface VisibleItem<T = unknown> {
   id: string;
   content: T;
   measurement?: ItemMeasurement;
@@ -61,11 +94,12 @@ export interface VirtualizedListConfig {
 // Special content types for loading and error states
 export interface PlaceholderContent {
   __isPlaceholder: true;
-  index: number;
 }
 
 // Union type for all possible content states
-export type ItemContentState<TContent = any> = TContent | PlaceholderContent;
+export type ItemContentState<TContent = unknown> =
+  | TContent
+  | PlaceholderContent;
 
 // Type guards for content state
 export const isPlaceholderContent = (
@@ -81,7 +115,7 @@ export const isRealContent = <TContent>(
 };
 
 // Item component props interface
-export interface VirtualizedItemProps<TContent = any> {
+export interface VirtualizedItemProps<TContent = unknown> {
   /** Unique identifier for the item */
   id: string;
   /** The actual data content, placeholder, or error state */
@@ -95,18 +129,18 @@ export interface VirtualizedItemProps<TContent = any> {
 }
 
 // Type for item components that follow the correct interface
-export type VirtualizedItemComponent<TContent = any> = React.ComponentType<
+export type VirtualizedItemComponent<TContent = unknown> = React.ComponentType<
   VirtualizedItemProps<TContent>
 >;
 
-export interface ListState<T> {
+export interface ListState<TTransformed> {
   viewportInfo: ViewportInfo;
-  visibleItems: VisibleItem<T>[];
+  visibleItems: VisibleItem<TTransformed>[];
   showScrollToTop: boolean;
   maximizedItemId: string | null;
   isInitialized: boolean;
 }
-export interface VirtualizedListInterface<T> {
+export interface VirtualizedListInterface<TData, TTransformed = TData> {
   measureItem(id: string, index: number, height: number): void;
   toggleMaximize(itemId: string, maximizedHeight?: number): void;
   setScrollContainer(element: HTMLElement): void;
@@ -114,5 +148,5 @@ export interface VirtualizedListInterface<T> {
   scrollToTop(): void;
   initialize(signal: AbortSignal): void;
   subscribe(callback: () => void): () => void;
-  getSnapshot(): ListState<T>;
+  getSnapshot(): ListState<TTransformed>;
 }

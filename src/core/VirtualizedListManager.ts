@@ -1,5 +1,5 @@
 import {
-  DataProvider,
+  DataProviderInterface,
   ViewportInfo,
   VisibleItem,
   VirtualizedListConfig,
@@ -10,12 +10,12 @@ import {
 import { Measurements } from "./Measurements";
 import { ScrollContainer } from "./ScrollContainer";
 
-export class VirtualizedListManager<T = any>
-  implements VirtualizedListInterface<T>
+export class VirtualizedListManager<TData = unknown, TTransformed = TData>
+  implements VirtualizedListInterface<TData, TTransformed>
 {
   private uuid: string;
 
-  private dataProvider: DataProvider<T>;
+  private dataProvider: DataProviderInterface<TData, TTransformed>;
 
   private defaultItemHeight: number;
   private gap: number;
@@ -35,7 +35,7 @@ export class VirtualizedListManager<T = any>
   private measurements: Measurements;
 
   constructor(
-    dataProvider: DataProvider<T>,
+    dataProvider: DataProviderInterface<TData, TTransformed>,
     config: VirtualizedListConfig = {}
   ) {
     this.dataProvider = dataProvider;
@@ -55,7 +55,7 @@ export class VirtualizedListManager<T = any>
     this.setupDataSubscription();
 
     this.measurements = new Measurements(
-      this.dataProvider,
+      this.getOrderedIds,
       this.notify,
       this.scrollToItemById,
       this.getContainerHeight,
@@ -65,7 +65,7 @@ export class VirtualizedListManager<T = any>
     );
 
     this.scrollContainer = new ScrollContainer(
-      this.dataProvider,
+      this.getOrderedIds,
       this.notify,
       this.getTotalHeight,
       this.defaultItemHeight
@@ -116,7 +116,7 @@ export class VirtualizedListManager<T = any>
     };
   };
 
-  getSnapshot = (): ListState<T> => {
+  getSnapshot = (): ListState<TTransformed> => {
     return {
       viewportInfo: this.getViewportInfo(),
       visibleItems: this.getVisibleItems(),
@@ -127,6 +127,9 @@ export class VirtualizedListManager<T = any>
   };
 
   // Private methods
+  private getOrderedIds = () => {
+    return this.dataProvider.getOrderedIds();
+  };
 
   private getTotalHeight = () => {
     return this.measurements.getTotalHeight();
@@ -187,7 +190,7 @@ export class VirtualizedListManager<T = any>
     };
   };
 
-  private getVisibleItems = (): VisibleItem<T>[] => {
+  private getVisibleItems = (): VisibleItem<TTransformed>[] => {
     const orderedIds = this.dataProvider.getOrderedIds();
     const scrollTop = this.scrollContainer.getScrollTop();
     const containerHeight = this.scrollContainer.getContainerHeight();
@@ -196,7 +199,7 @@ export class VirtualizedListManager<T = any>
     const viewportTop = Math.max(0, scrollTop - overscanHeight);
     const viewportBottom = scrollTop + containerHeight + overscanHeight;
 
-    const visibleItems: VisibleItem<T>[] = [];
+    const visibleItems: VisibleItem<TTransformed>[] = [];
 
     for (const id of orderedIds) {
       const measurement = this.measurements.getMeasurementById(id);

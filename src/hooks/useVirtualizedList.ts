@@ -6,12 +6,16 @@ import {
   RefObject,
 } from "react";
 import { VirtualizedListManager } from "../core/VirtualizedListManager";
-import { DataProvider, VirtualizedListConfig, ListState } from "../types";
+import {
+  DataProviderInterface,
+  VirtualizedListConfig,
+  ListState,
+} from "../types";
 import { isEqual } from "../utils";
 
 // React hook with stable references
-export function useVirtualizedList<T = any>(
-  dataProvider: DataProvider<T>,
+export function useVirtualizedList<T = unknown>(
+  dataProvider: DataProviderInterface<T>,
   config?: VirtualizedListConfig,
   scrollContainerRef?: RefObject<HTMLElement>
 ) {

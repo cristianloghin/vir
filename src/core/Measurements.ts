@@ -1,4 +1,8 @@
-import { DataProvider, ItemMeasurement, MaximizationConfig } from "../types";
+import {
+  DataProviderInterface,
+  ItemMeasurement,
+  MaximizationConfig,
+} from "../types";
 
 export class Measurements {
   private measurements = new Map<string, ItemMeasurement>();
@@ -6,7 +10,7 @@ export class Measurements {
   private currentVersion = 0;
 
   constructor(
-    private dataProvider: DataProvider,
+    private getOrderedIds: () => string[],
     private notify: () => void,
     private scrollToItemById: (id: string) => void,
     private getContainerHeight: () => number,
@@ -38,7 +42,7 @@ export class Measurements {
   };
 
   buildMeasurements = () => {
-    const orderedIds = this.dataProvider.getOrderedIds();
+    const orderedIds = this.getOrderedIds();
     let currentTop = 0;
 
     for (const id of orderedIds) {
@@ -79,7 +83,7 @@ export class Measurements {
   };
 
   getTotalHeight = (): number => {
-    const orderedIds = this.dataProvider.getOrderedIds();
+    const orderedIds = this.getOrderedIds();
     const totalCount = orderedIds.length;
 
     if (this.measurements.size === 0) {

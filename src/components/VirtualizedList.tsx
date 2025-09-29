@@ -1,16 +1,15 @@
-import { JSX, memo, RefObject, useEffect, useMemo, useRef } from "react";
+import { JSX, memo, RefObject, useEffect, useRef } from "react";
 import { VirtualizedItem } from "./VirtualizedItem";
 import {
-  DataProvider,
   VirtualizedListConfig,
   VirtualizedItemComponent,
+  DataProviderInterface,
 } from "../types";
-import { useVirtualizedList } from "../hooks";
+import { useVirtualizedList } from "../hooks/useVirtualizedList";
 
-// Main component with React.memo and stable props
-interface VirtualizedListProps<T = any> {
-  dataProvider: DataProvider<T>;
-  ItemComponent: VirtualizedItemComponent<T>;
+interface VirtualizedListProps<TData = unknown, TTransformed = TData> {
+  dataProvider: DataProviderInterface<TData, TTransformed>;
+  ItemComponent: VirtualizedItemComponent<TTransformed>;
   ScrollTopComponent?: React.FC<{ scrollTop: () => void }>;
   className?: string;
   style?: React.CSSProperties;

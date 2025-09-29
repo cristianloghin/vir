@@ -2,9 +2,9 @@ import { JSX, memo, useCallback, useEffect, useRef } from "react";
 import { VisibleItem, VirtualizedItemComponent } from "../types";
 
 // Memoized item wrapper
-interface VirtualizedItemWrapperProps<T = any> {
-  item: VisibleItem<T>;
-  ItemComponent: VirtualizedItemComponent<T>;
+interface VirtualizedItemWrapperProps<TData = unknown> {
+  item: VisibleItem<TData>;
+  ItemComponent: VirtualizedItemComponent<TData>;
   onToggleMaximize: (id: string, height?: number) => void;
   itemObserver: ResizeObserver;
 }

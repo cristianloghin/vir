@@ -1,2 +1,1 @@
-export * from "./useVirtualizedList";
-export * from "./useInMemoryDataProvider";
+export * from "./useDataProvider";
