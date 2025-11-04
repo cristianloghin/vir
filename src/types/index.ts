@@ -4,18 +4,16 @@ export interface ListItem<T = unknown> {
   content: T;
 }
 
-export interface DataProviderInterface<TData = unknown, TTransformed = TData> {
+export interface DataProviderInterface<TData = unknown, TSelected = TData> {
   subscribe: (callback: () => void) => () => void;
   updateRawData: (
     items: ListItem<TData>[],
     isLoading: boolean,
     error: Error | null
   ) => void;
-  updateSelector: (
-    selector: SelectorFunction<TData, TTransformed> | null
-  ) => void;
+  updateSelector: (selector: SelectorFunction<TData, TSelected> | null) => void;
   getOrderedIds: () => string[];
-  getItemById: (id: string) => ListItem<TTransformed> | null;
+  getItemById: (id: string) => ListItem<TSelected> | null;
   getTotalCount: () => number;
   getState: () => {
     isLoading: boolean;
@@ -27,16 +25,15 @@ export interface DataProviderInterface<TData = unknown, TTransformed = TData> {
   };
 }
 
-export type SelectorFunction<TData, TTransformed = TData> = (
+export type NormalizeFunction<TData> = (data: TData[]) => ListItem<TData>[];
+
+export type SelectorFunction<TData, TSelected = TData> = (
   allItems: ListItem<TData>[]
-) => ListItem<TTransformed>[];
+) => ListItem<TSelected>[];
 
-export interface DataProviderOptions<TData, TTransformed = TData> {
-  // Data transformation (applied before selector)
-  transformData: (data: TData[]) => ListItem<TData>[];
-
+export interface DataProviderOptions<TData, TSelected = TData> {
   // Selector pattern
-  selector?: SelectorFunction<TData, TTransformed>;
+  selector?: SelectorFunction<TData, TSelected>;
   dependencies?: readonly unknown[];
 
   // Placeholder behavior
@@ -133,14 +130,14 @@ export type VirtualizedItemComponent<TContent = unknown> = React.ComponentType<
   VirtualizedItemProps<TContent>
 >;
 
-export interface ListState<TTransformed> {
+export interface ListState<TSelected> {
   viewportInfo: ViewportInfo;
-  visibleItems: VisibleItem<TTransformed>[];
+  visibleItems: VisibleItem<TSelected>[];
   showScrollToTop: boolean;
   maximizedItemId: string | null;
   isInitialized: boolean;
 }
-export interface VirtualizedListInterface<TData, TTransformed = TData> {
+export interface VirtualizedListInterface<TData, TSelected = TData> {
   measureItem(id: string, index: number, height: number): void;
   toggleMaximize(itemId: string, maximizedHeight?: number): void;
   setScrollContainer(element: HTMLElement): void;
@@ -148,5 +145,5 @@ export interface VirtualizedListInterface<TData, TTransformed = TData> {
   scrollToTop(): void;
   initialize(signal: AbortSignal): void;
   subscribe(callback: () => void): () => void;
-  getSnapshot(): ListState<TTransformed>;
+  getSnapshot(): ListState<TSelected>;
 }

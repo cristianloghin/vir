@@ -1,29 +1,51 @@
 import { useEffect, useMemo, useRef } from "react";
 import { DataProvider } from "../core/DataProvider";
-import { DataProviderInterface, DataProviderOptions } from "../types";
+import {
+  DataProviderInterface,
+  DataProviderOptions,
+  NormalizeFunction,
+} from "../types";
 
-export function useDataProvider<TData = unknown, TTransformed = TData>(
+// Overload 1: Simple usage - data only
+export function useDataProvider<TData = unknown>(
+  data: TData[],
+  normalizeData: NormalizeFunction<TData>
+): DataProviderInterface<TData, TData>;
+
+// Overload 2: Full usage - all 4 parameters required
+export function useDataProvider<TData = unknown, TSelected = TData>(
   data: TData[] | undefined,
-  isLoading = false,
+  normalizeData: NormalizeFunction<TData>,
+  isLoading: boolean,
   error: Error | null,
-  options: DataProviderOptions<TData, TTransformed>
-) {
-  const { selector, dependencies = [], ...queryOptions } = options;
+  options: DataProviderOptions<TData, TSelected>
+): DataProviderInterface<TData, TSelected>;
+
+// Implementation
+export function useDataProvider<TData = unknown, TSelected = TData>(
+  data: TData[] | undefined,
+  normalizeData: NormalizeFunction<TData>,
+  isLoading?: boolean,
+  error?: Error | null,
+  options?: DataProviderOptions<TData, TSelected>
+): DataProviderInterface<TData, TSelected> {
+  // Handle overload 1: simple usage with data only
+  const actualOptions: DataProviderOptions<TData, TSelected> = options ?? {};
+  const actualIsLoading = isLoading ?? false;
+  const actualError = error ?? null;
+
+  const { selector, dependencies = [], ...queryOptions } = actualOptions;
+
   const dataProviderRef = useRef<DataProviderInterface<
     TData,
-    TTransformed
+    TSelected
   > | null>(null);
 
   if (!dataProviderRef.current) {
-    dataProviderRef.current = new DataProvider<TData, TTransformed>(options);
+    dataProviderRef.current = new DataProvider<TData, TSelected>(actualOptions);
   }
 
   const provider = dataProviderRef.current;
-
-  // Stable transformer reference
-  const transformer = useMemo(() => {
-    return options.transformData;
-  }, [options.transformData]);
 
   // Memoized selector with dependencies
   const memoizedSelector = useMemo(
@@ -42,14 +64,14 @@ export function useDataProvider<TData = unknown, TTransformed = TData>(
     if (!provider) return;
 
     if (data) {
-      const transformedData = transformer(data);
-      provider.updateRawData(transformedData, isLoading, error);
+      const normalizedData = normalizeData(data);
+      provider.updateRawData(normalizedData, actualIsLoading, actualError);
     } else if (error) {
       provider.updateRawData([], false, error as Error);
     } else if (isLoading) {
       provider.updateRawData([], true, null);
     }
-  }, [data, isLoading, error, provider, transformer]);
+  }, [data, isLoading, error, provider, normalizeData]);
 
   return dataProviderRef.current;
 }

@@ -5,11 +5,11 @@ import {
   SelectorFunction,
 } from "../types";
 
-export class DataProvider<TData = unknown, TTransformed = TData>
-  implements DataProviderInterface<TData, TTransformed>
+export class DataProvider<TData = unknown, TSelected = TData>
+  implements DataProviderInterface<TData, TSelected>
 {
   private rawItems: ListItem<TData>[] = [];
-  private selectedItems: ListItem<TTransformed>[] = [];
+  private selectedItems: ListItem<TSelected>[] = [];
 
   private isLoading: boolean = false;
   private error: Error | null = null;
@@ -17,15 +17,15 @@ export class DataProvider<TData = unknown, TTransformed = TData>
 
   private options: Required<
     Pick<
-      DataProviderOptions<TData, TTransformed>,
+      DataProviderOptions<TData, TSelected>,
       "placeholderCount" | "showPlaceholders"
     >
   >;
 
   // Selector state
-  private currentSelector: SelectorFunction<TData, TTransformed> | null = null;
+  private currentSelector: SelectorFunction<TData, TSelected> | null = null;
 
-  constructor(options: DataProviderOptions<TData, TTransformed>) {
+  constructor(options: DataProviderOptions<TData, TSelected>) {
     this.options = {
       placeholderCount: options.placeholderCount ?? 10,
       showPlaceholders: options.showPlaceholders ?? true,
@@ -76,7 +76,7 @@ export class DataProvider<TData = unknown, TTransformed = TData>
   };
 
   // Update selector and dependencies
-  updateSelector = (selector: SelectorFunction<TData, TTransformed> | null) => {
+  updateSelector = (selector: SelectorFunction<TData, TSelected> | null) => {
     // Check if selector or dependencies changed
     const selectorChanged = this.currentSelector !== selector;
 
@@ -117,11 +117,11 @@ export class DataProvider<TData = unknown, TTransformed = TData>
     return this.selectedItems.length;
   };
 
-  getItemById = (id: string): ListItem<TTransformed> | null => {
+  getItemById = (id: string): ListItem<TSelected> | null => {
     if (id.startsWith("__placeholder-")) {
       return {
         id,
-        content: { __isPlaceholder: true } as TTransformed,
+        content: { __isPlaceholder: true } as TSelected,
       };
     }
 
@@ -154,14 +154,14 @@ export class DataProvider<TData = unknown, TTransformed = TData>
 
   private applySelector = () => {
     try {
-      let newSelectedItems: ListItem<TTransformed>[];
+      let newSelectedItems: ListItem<TSelected>[];
 
       if (this.currentSelector && this.rawItems.length > 0) {
         // Apply selector with dependencies
         newSelectedItems = this.currentSelector(this.rawItems);
       } else {
         // No selector - pass through raw items (with type casting)
-        newSelectedItems = this.rawItems as unknown as ListItem<TTransformed>[];
+        newSelectedItems = this.rawItems as unknown as ListItem<TSelected>[];
       }
 
       // Update selected items

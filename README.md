@@ -7,7 +7,6 @@ A high-performance React virtual list component with advanced item maximization 
 - **Virtual Scrolling**: Only renders visible items for optimal performance with large datasets
 - **Dynamic Heights**: Supports items with variable heights
 - **Item Maximization**: Expandable/collapsible items with configurable behavior
-- **Multiple Data Sources**: In-memory and React Query integration
 - **TypeScript**: Fully typed with comprehensive interfaces
 - **Smooth Transitions**: Built-in transition management for data changes
 
@@ -20,7 +19,7 @@ npm install @mikrostack/vir
 ## Basic Usage
 
 ```tsx
-import { VirtualizedList, InMemoryDataProvider } from '@mikrostack/vir';
+import { VirtualizedList, DataProvider, ListItem } from '@mikrostack/vir';
 
 const items = [
   { id: '1', title: 'Item 1', description: 'Description 1' },
@@ -40,7 +39,8 @@ const ItemComponent = ({ id, content, index, isMaximized, onToggleMaximize }) =>
   </div>
 );
 
-const dataProvider = useDataProvider(items);
+// Create data provider
+const dataProvider = useDataProvider(items, (item) => ({ id: item.id, content: item }));
 
 function App() {
   return (
@@ -142,28 +142,31 @@ Fixed pixel height:
 
 ## Data Providers
 
-### In-Memory Provider
+### Simple Provider
 For static or locally managed data:
 
 ```tsx
-import { useInMemoryDataProvider } from '@mikrostack/vir';
+import { useDataProvider } from '@mikrostack/vir';
 
-const { dataProvider } = useInMemoryDataProvider(items);
+const items = [...]
+const dataProvider = useDataProvider(items, (item) => ({ id: item.name, content: item }));
 ```
 
 ### React Query Provider
 For server-side data with caching and synchronization:
 
 ```tsx
-import { useReactQueryDataProvider } from '@mikrostack/vir';
+import { useQuery } from '@tanstack/react-query';
+import { useDataProvider } from '@mikrostack/vir';
 
-const { dataProvider } = useReactQueryDataProvider({
+const { data, isLoading, error } = useQuery({
   queryKey: ['items'],
-  queryFn: () => fetchItems(),
-  selector: (data) => data.map(item => ({
-    id: item.id,
-    content: item
-  }))
+  queryFn: () => ...,
+})
+
+const dataProvider = useDataProvider(data, (item) => ({ id: item.id, content: item }), isLoading, error, {
+  selector: (items) => {...},
+  dependencies: [deps]
 });
 ```
 
@@ -177,8 +180,6 @@ interface VirtualizedItemProps<TContent = any> {
   id: string;
   /** The actual data content for this item */
   content: TContent;
-  /** Current index in the virtualized list */
-  index: number;
   /** Whether this item is currently maximized/expanded */
   isMaximized: boolean;
   /** Function to toggle the maximized state */
@@ -194,7 +195,6 @@ For TypeScript users, use the `VirtualizedItemComponent` type:
 import {
   VirtualizedItemComponent,
   isPlaceholderContent,
-  isErrorContent,
   isRealContent
 } from '@mikrostack/vir';
 
@@ -219,16 +219,6 @@ const MyItemComponent: VirtualizedItemComponent<MyItemData> = ({
         <div className="skeleton-title" />
         <div className="skeleton-text" />
         <div className="skeleton-text" />
-      </div>
-    );
-  }
-
-  // Handle error state
-  if (isErrorContent(content)) {
-    return (
-      <div className="error-item">
-        <h3>Error loading item</h3>
-        <p>{content.error}</p>
       </div>
     );
   }
@@ -264,29 +254,19 @@ if (isPlaceholderContent(content)) {
 }
 ```
 
-### Error States
-```tsx
-if (isErrorContent(content)) {
-  return (
-    <div className="error-state p-4 border border-red-200 bg-red-50">
-      <h4 className="text-red-800">Failed to load</h4>
-      <p className="text-red-600">{content.error}</p>
-    </div>
-  );
-}
-```
-
 ### Configuration
 Control loading behavior in your data provider options:
 
 ```tsx
-const { dataProvider } = useReactQueryDataProvider(
-  ['items'],
-  fetchItems,
+const { data, isLoading, error } = useQuery(...)
+const dataProvider = useDataProvider(
+  data,
+  (record) => ({ id: record.id, content: record }),
+  isLoading,
+  error,
   {
     placeholderCount: 5, // Show 5 skeleton items
-    showPlaceholdersWhileLoading: true,
-    showErrorItem: true
+    showPlaceholders: true,
   }
 );
 ```
