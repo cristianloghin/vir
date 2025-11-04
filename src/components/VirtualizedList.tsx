@@ -1,4 +1,4 @@
-import { JSX, memo, RefObject, useEffect, useRef, useMemo } from "react";
+import { JSX, memo, RefObject, useEffect, useRef } from "react";
 import { VirtualizedItem } from "./VirtualizedItem";
 import {
   VirtualizedListConfig,

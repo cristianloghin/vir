@@ -40,7 +40,7 @@ const ItemComponent = ({ id, content, index, isMaximized, onToggleMaximize }) =>
   </div>
 );
 
-const dataProvider = new InMemoryDataProvider(items);
+const dataProvider = useDataProvider(items);
 
 function App() {
   return (

@@ -32,21 +32,13 @@ export class DataProvider<TData = unknown, TTransformed = TData>
     };
   }
 
+  // Public API
+
   subscribe = (callback: () => void) => {
     this.subscribers.add(callback);
     return () => {
       this.subscribers.delete(callback);
     };
-  };
-
-  private notify = () => {
-    this.subscribers.forEach((callback) => {
-      try {
-        callback();
-      } catch (error) {
-        console.error("Error in data provider subscriber:", error);
-      }
-    });
   };
 
   // Update raw data from data source
@@ -94,33 +86,6 @@ export class DataProvider<TData = unknown, TTransformed = TData>
     }
   };
 
-  private applySelector = () => {
-    try {
-      let newSelectedItems: ListItem<TTransformed>[];
-
-      if (this.currentSelector && this.rawItems.length > 0) {
-        // Apply selector with dependencies
-        newSelectedItems = this.currentSelector(this.rawItems);
-      } else {
-        // No selector - pass through raw items (with type casting)
-        newSelectedItems = this.rawItems as unknown as ListItem<TTransformed>[];
-      }
-
-      // Update selected items
-      this.selectedItems = newSelectedItems;
-    } catch (selectorError) {
-      console.error("Selector function error:", selectorError);
-
-      // On selector error, fall back to empty array and set error state
-      this.selectedItems = [];
-      this.error = new Error(
-        `Selector error: ${(selectorError as Error).message}`
-      );
-    } finally {
-      this.notify();
-    }
-  };
-
   getOrderedIds = () => {
     if (
       this.isLoading &&
@@ -164,7 +129,6 @@ export class DataProvider<TData = unknown, TTransformed = TData>
     return item || null;
   };
 
-  // Debug info
   getState = () => {
     return {
       isLoading: this.isLoading,
@@ -174,5 +138,44 @@ export class DataProvider<TData = unknown, TTransformed = TData>
       hasSelector: !!this.currentSelector,
       subscriberCount: this.subscribers.size,
     };
+  };
+
+  // Private methods
+
+  private notify = () => {
+    this.subscribers.forEach((callback) => {
+      try {
+        callback();
+      } catch (error) {
+        console.error("Error in data provider subscriber:", error);
+      }
+    });
+  };
+
+  private applySelector = () => {
+    try {
+      let newSelectedItems: ListItem<TTransformed>[];
+
+      if (this.currentSelector && this.rawItems.length > 0) {
+        // Apply selector with dependencies
+        newSelectedItems = this.currentSelector(this.rawItems);
+      } else {
+        // No selector - pass through raw items (with type casting)
+        newSelectedItems = this.rawItems as unknown as ListItem<TTransformed>[];
+      }
+
+      // Update selected items
+      this.selectedItems = newSelectedItems;
+    } catch (selectorError) {
+      console.error("Selector function error:", selectorError);
+
+      // On selector error, fall back to empty array and set error state
+      this.selectedItems = [];
+      this.error = new Error(
+        `Selector error: ${(selectorError as Error).message}`
+      );
+    } finally {
+      this.notify();
+    }
   };
 }
