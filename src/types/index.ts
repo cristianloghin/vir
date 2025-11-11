@@ -57,6 +57,7 @@ export interface ViewportInfo {
 export interface VisibleItem<T = unknown> {
   id: string;
   content: T;
+  metadata?: Record<string, unknown>;
   measurement?: ItemMeasurement;
   isMaximized: boolean;
   maximizationConfig?: MaximizationConfig;
@@ -124,6 +125,8 @@ export interface VirtualizedItemProps<TContent = unknown> {
   onToggleMaximize: () => void;
   /** Optional type/category of the item */
   type?: string;
+  /** Optional metadata object of the item */
+  metadata?: Record<string, unknown>;
 }
 
 // Type for item components that follow the correct interface
