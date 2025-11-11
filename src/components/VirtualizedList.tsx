@@ -1,4 +1,5 @@
 import { JSX, memo, RefObject, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { VirtualizedItem } from "./VirtualizedItem";
 import {
   VirtualizedListConfig,
@@ -15,6 +16,7 @@ interface VirtualizedListProps<TData = unknown, TTransformed = TData> {
   style?: React.CSSProperties;
   config?: VirtualizedListConfig;
   scrollContainerRef?: RefObject<HTMLElement>;
+  scrollButtonPortalRef?: RefObject<HTMLElement>;
 }
 
 export const VirtualizedList = memo(
@@ -25,6 +27,7 @@ export const VirtualizedList = memo(
     className = "",
     style = {},
     scrollContainerRef,
+    scrollButtonPortalRef,
     config,
   }: VirtualizedListProps<TData, TTransformed>) => {
     const {
@@ -135,13 +138,21 @@ export const VirtualizedList = memo(
       )
     ) : null;
 
+    const renderScrollButton = () => {
+      if (!scrollButton) return null;
+      if (scrollButtonPortalRef?.current) {
+        return createPortal(scrollButton, scrollButtonPortalRef.current);
+      }
+      return scrollButton;
+    };
+
     if (scrollContainerRef) {
       return (
         <>
           <div className={className} style={outerStyle}>
             {innerContent}
           </div>
-          {scrollButton}
+          {renderScrollButton()}
         </>
       );
     }
@@ -155,7 +166,7 @@ export const VirtualizedList = memo(
         >
           {innerContent}
         </div>
-        {scrollButton}
+        {renderScrollButton()}
       </div>
     );
   }
