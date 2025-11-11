@@ -1,6 +1,7 @@
 export interface ListItem<T = unknown> {
   id: string;
   type?: string;
+  meta?: Record<string, unknown>;
   content: T;
 }
 
