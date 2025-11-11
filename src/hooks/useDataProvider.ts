@@ -18,7 +18,7 @@ export function useDataProvider<TData = unknown, TSelected = TData>(
   normalizeData: NormalizeFunction<TData>,
   isLoading: boolean,
   error: Error | null,
-  options: DataProviderOptions<TData, TSelected>
+  options: DataProviderOptions<TData, TSelected> | undefined
 ): DataProviderInterface<TData, TSelected>;
 
 // Implementation
@@ -30,11 +30,16 @@ export function useDataProvider<TData = unknown, TSelected = TData>(
   options?: DataProviderOptions<TData, TSelected>
 ): DataProviderInterface<TData, TSelected> {
   // Handle overload 1: simple usage with data only
-  const actualOptions: DataProviderOptions<TData, TSelected> = options ?? {};
+  const actualOptions: DataProviderOptions<TData, TSelected> = options ?? {
+    selector: undefined,
+    dependencies: [],
+    placeholderCount: 10,
+    showPlaceholders: true,
+  };
   const actualIsLoading = isLoading ?? false;
   const actualError = error ?? null;
 
-  const { selector, dependencies = [], ...queryOptions } = actualOptions;
+  const { selector, dependencies = [] } = actualOptions;
 
   const dataProviderRef = useRef<DataProviderInterface<
     TData,
@@ -55,7 +60,7 @@ export function useDataProvider<TData = unknown, TSelected = TData>(
 
   // Update selector when it changes
   useEffect(() => {
-    if (!provider) return;
+    if (!provider || !memoizedSelector) return;
     provider.updateSelector(memoizedSelector);
   }, [memoizedSelector, provider]);
 
