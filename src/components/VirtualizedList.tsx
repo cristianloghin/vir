@@ -1,16 +1,15 @@
 import { JSX, memo, RefObject, useEffect, useRef } from "react";
 import { VirtualizedItem } from "./VirtualizedItem";
 import {
-  DataProvider,
   VirtualizedListConfig,
   VirtualizedItemComponent,
+  DataProviderInterface,
 } from "../types";
-import { useVirtualizedList } from "../hooks";
+import { useVirtualizedList } from "../hooks/useVirtualizedList";
 
-// Main component with React.memo and stable props
-interface VirtualizedListProps<T = any> {
-  dataProvider: DataProvider<T>;
-  ItemComponent: VirtualizedItemComponent<T>;
+interface VirtualizedListProps<TData = unknown, TTransformed = TData> {
+  dataProvider: DataProviderInterface<TData, TTransformed>;
+  ItemComponent: VirtualizedItemComponent<TTransformed>;
   ScrollTopComponent?: React.FC<{ scrollTop: () => void }>;
   className?: string;
   style?: React.CSSProperties;
@@ -19,15 +18,15 @@ interface VirtualizedListProps<T = any> {
 }
 
 export const VirtualizedList = memo(
-  <T,>({
+  <TData, TTransformed = TData>({
     dataProvider,
     ItemComponent,
     ScrollTopComponent,
     className = "",
     style = {},
-    config,
     scrollContainerRef,
-  }: VirtualizedListProps<T>) => {
+    config,
+  }: VirtualizedListProps<TData, TTransformed>) => {
     const {
       containerRef,
       handleScroll,
@@ -44,9 +43,8 @@ export const VirtualizedList = memo(
         for (const entry of entries) {
           const height = entry.contentRect.height;
           const id = (entry.target as HTMLDivElement).dataset.id;
-          const index = (entry.target as HTMLDivElement).dataset.index;
-          if (id && index) {
-            measureItem(id, Number(index), height);
+          if (id) {
+            measureItem(id, height);
           }
         }
       });
@@ -109,6 +107,45 @@ export const VirtualizedList = memo(
       zIndex: 1000,
     };
 
+    const innerContent = (
+      <div style={innerStyle}>
+        {state.visibleItems.map((item) => (
+          <VirtualizedItem
+            key={item.id}
+            item={item}
+            ItemComponent={ItemComponent}
+            onToggleMaximize={toggleMaximize}
+            itemObserver={itemObserver!}
+          />
+        ))}
+      </div>
+    );
+
+    const scrollButton = state.showScrollToTop ? (
+      ScrollTopComponent ? (
+        <ScrollTopComponent scrollTop={scrollToTop} />
+      ) : (
+        <button
+          onClick={scrollToTop}
+          aria-label="Scroll to top"
+          style={scrollToTopButtonStyle}
+        >
+          ↑
+        </button>
+      )
+    ) : null;
+
+    if (scrollContainerRef) {
+      return (
+        <>
+          <div className={className} style={outerStyle}>
+            {innerContent}
+          </div>
+          {scrollButton}
+        </>
+      );
+    }
+
     return (
       <div className={className} style={outerStyle}>
         <div
@@ -116,33 +153,12 @@ export const VirtualizedList = memo(
           onScroll={scrollContainerRef ? undefined : handleScroll}
           style={containerStyle}
         >
-          <div style={innerStyle}>
-            {state.visibleItems.map((item) => (
-              <VirtualizedItem
-                key={item.id}
-                item={item}
-                ItemComponent={ItemComponent}
-                onToggleMaximize={toggleMaximize}
-                itemObserver={itemObserver!}
-              />
-            ))}
-          </div>
+          {innerContent}
         </div>
-
-        {state.showScrollToTop ? (
-          ScrollTopComponent ? (
-            <ScrollTopComponent scrollTop={scrollToTop} />
-          ) : (
-            <button
-              onClick={scrollToTop}
-              aria-label="Scroll to top"
-              style={scrollToTopButtonStyle}
-            >
-              ↑
-            </button>
-          )
-        ) : null}
+        {scrollButton}
       </div>
     );
   }
-) as <T>(props: VirtualizedListProps<T>) => JSX.Element;
+) as <TData, TTransformed = TData>(
+  props: VirtualizedListProps<TData, TTransformed>
+) => JSX.Element;

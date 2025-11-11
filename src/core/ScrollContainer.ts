@@ -1,4 +1,4 @@
-import { DataProvider, ItemMeasurement } from "../types";
+import { ItemMeasurement } from "../types";
 
 export class ScrollContainer {
   private scrollContainerElement: HTMLElement | null = null;
@@ -13,7 +13,7 @@ export class ScrollContainer {
   private scrollEventCleanup: (() => void) | null = null;
 
   constructor(
-    private dataProvider: DataProvider,
+    private getOrderedIds: () => string[],
     private notify: () => void,
     private getTotalHeight: () => number,
     private defaultItemHeight: number
@@ -76,8 +76,9 @@ export class ScrollContainer {
       // Initial scroll calculation
       handleExternalScroll();
 
+      this.scrollContainerElement.style = `overflow: scroll; will-change: scroll-position; scrollbar-gutter: stable; overscroll-behavior: contain`;
+
       this.resizeObserver.observe(this.scrollContainerElement);
-      // this.isInitialized = true;
       this.notify();
 
       this.scrollEventCleanup = () => {
@@ -114,9 +115,8 @@ export class ScrollContainer {
     if (!this.scrollContainerElement) return;
 
     if (!measurement) {
-      const totalCount = this.dataProvider.getTotalCount();
-      const items = this.dataProvider.getData(0, Math.min(totalCount, 100) - 1);
-      const itemIndex = items.findIndex((item) => item.id === itemId);
+      const orderedIds = this.getOrderedIds();
+      const itemIndex = orderedIds.findIndex((id) => id === itemId);
 
       if (itemIndex !== -1) {
         this.scrollToPosition(itemIndex * this.defaultItemHeight, false);
@@ -163,32 +163,6 @@ export class ScrollContainer {
       this.scrollTopRatio =
         this.scrollTop / Math.max(1, totalHeight - this.containerHeight);
     }
-  };
-
-  private createResizeHandler = (): ResizeObserver => {
-    return new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const newHeight = entry.contentRect.height;
-        if (newHeight !== this.containerHeight && newHeight > 0) {
-          const oldTotalHeight = this.getTotalHeight();
-          if (oldTotalHeight > 0) this.updateScrollTopRatio();
-
-          this.containerHeight = newHeight;
-
-          requestAnimationFrame(() => {
-            if (this.scrollContainerElement && this.scrollTopRatio > 0) {
-              const newTotalHeight = this.getTotalHeight();
-              const newScrollTop =
-                this.scrollTopRatio *
-                Math.max(0, newTotalHeight - this.containerHeight);
-              this.scrollContainerElement.scrollTop = Math.max(0, newScrollTop);
-            }
-          });
-
-          this.notify();
-        }
-      }
-    });
   };
 
   private scrollToPosition = (top: number, smooth = true) => {

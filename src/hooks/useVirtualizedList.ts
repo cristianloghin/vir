@@ -6,17 +6,21 @@ import {
   RefObject,
 } from "react";
 import { VirtualizedListManager } from "../core/VirtualizedListManager";
-import { DataProvider, VirtualizedListConfig, ListState } from "../types";
+import {
+  DataProviderInterface,
+  VirtualizedListConfig,
+  ListState,
+} from "../types";
 import { isEqual } from "../utils";
 
 // React hook with stable references
-export function useVirtualizedList<T = any>(
-  dataProvider: DataProvider<T>,
+export function useVirtualizedList<TData = unknown, TTransformed = TData>(
+  dataProvider: DataProviderInterface<TData, TTransformed>,
   config?: VirtualizedListConfig,
   scrollContainerRef?: RefObject<HTMLElement>
 ) {
-  const managerRef = useRef<VirtualizedListManager<T>>(null);
-  const stateRef = useRef<ListState<T>>(null);
+  const managerRef = useRef<VirtualizedListManager<TData, TTransformed>>(null);
+  const stateRef = useRef<ListState<TTransformed>>(null);
 
   // Create manager only once
   if (!managerRef.current) {
@@ -69,8 +73,8 @@ export function useVirtualizedList<T = any>(
   );
 
   const measureItem = useCallback(
-    (id: string, index: number, height: number) => {
-      manager.measureItem(id, index, height);
+    (id: string, height: number) => {
+      manager.measureItem(id, height);
     },
     [manager]
   );

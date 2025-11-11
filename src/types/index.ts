@@ -1,36 +1,62 @@
-export interface ListItem<T = any> {
+export interface ListItem<T = unknown> {
   id: string;
   type?: string;
+  meta?: Record<string, unknown>;
   content: T;
 }
 
-export interface DataProvider<T = any> {
+export interface DataProviderInterface<TData = unknown, TSelected = TData> {
   subscribe: (callback: () => void) => () => void;
-  getData: (startIndex: number, endIndex: number) => ListItem<T>[];
+  updateRawData: (
+    items: ListItem<TData>[],
+    isLoading: boolean,
+    error: Error | null
+  ) => void;
+  updateSelector: (selector: SelectorFunction<TData, TSelected> | null) => void;
+  getOrderedIds: () => string[];
+  getItemById: (id: string) => ListItem<TSelected> | null;
   getTotalCount: () => number;
-  getItemById?: (id: string) => ListItem<T> | null;
-  // New method to get all current item IDs efficiently
-  getCurrentItemIds?: () => Set<string>;
+  getState: () => {
+    isLoading: boolean;
+    error: Error | null;
+    rawItemCount: number;
+    selectedItemCount: number;
+    hasSelector: boolean;
+    subscriberCount: number;
+  };
+}
+
+export type NormalizeFunction<TData> = (data: TData[]) => ListItem<TData>[];
+
+export type SelectorFunction<TData, TSelected = TData> = (
+  allItems: ListItem<TData>[]
+) => ListItem<TSelected>[];
+
+export interface DataProviderOptions<TData, TSelected = TData> {
+  // Selector pattern
+  selector?: SelectorFunction<TData, TSelected>;
+  dependencies?: readonly unknown[];
+
+  // Placeholder behavior
+  placeholderCount?: number;
+  showPlaceholders?: boolean;
 }
 
 export interface ItemMeasurement {
   height: number;
   top: number;
+  version: number;
+  lastUsed: number;
 }
 
 export interface ViewportInfo {
-  scrollTop: number;
-  containerHeight: number;
-  startIndex: number;
-  endIndex: number;
   totalHeight: number;
   totalCount: number;
 }
 
-export interface VisibleItem<T = any> {
+export interface VisibleItem<T = unknown> {
   id: string;
   content: T;
-  index: number;
   measurement?: ItemMeasurement;
   isMaximized: boolean;
   maximizationConfig?: MaximizationConfig;
@@ -66,20 +92,12 @@ export interface VirtualizedListConfig {
 // Special content types for loading and error states
 export interface PlaceholderContent {
   __isPlaceholder: true;
-  index: number;
-}
-
-export interface ErrorContent {
-  __isError: true;
-  error: string;
-  originalError: Error;
 }
 
 // Union type for all possible content states
-export type ItemContentState<TContent = any> =
+export type ItemContentState<TContent = unknown> =
   | TContent
-  | PlaceholderContent
-  | ErrorContent;
+  | PlaceholderContent;
 
 // Type guards for content state
 export const isPlaceholderContent = (
@@ -88,24 +106,18 @@ export const isPlaceholderContent = (
   return content && content.__isPlaceholder === true;
 };
 
-export const isErrorContent = (content: any): content is ErrorContent => {
-  return content && content.__isError === true;
-};
-
 export const isRealContent = <TContent>(
   content: ItemContentState<TContent>
 ): content is TContent => {
-  return !isPlaceholderContent(content) && !isErrorContent(content);
+  return !isPlaceholderContent(content);
 };
 
 // Item component props interface
-export interface VirtualizedItemProps<TContent = any> {
+export interface VirtualizedItemProps<TContent = unknown> {
   /** Unique identifier for the item */
   id: string;
   /** The actual data content, placeholder, or error state */
   content: ItemContentState<TContent>;
-  /** Current index in the virtualized list */
-  index: number;
   /** Whether this item is currently maximized/expanded */
   isMaximized: boolean;
   /** Function to toggle the maximized state */
@@ -115,18 +127,18 @@ export interface VirtualizedItemProps<TContent = any> {
 }
 
 // Type for item components that follow the correct interface
-export type VirtualizedItemComponent<TContent = any> = React.ComponentType<
+export type VirtualizedItemComponent<TContent = unknown> = React.ComponentType<
   VirtualizedItemProps<TContent>
 >;
 
-export interface ListState<T> {
+export interface ListState<TSelected> {
   viewportInfo: ViewportInfo;
-  visibleItems: VisibleItem<T>[];
+  visibleItems: VisibleItem<TSelected>[];
   showScrollToTop: boolean;
   maximizedItemId: string | null;
   isInitialized: boolean;
 }
-export interface VirtualizedListInterface<T> {
+export interface VirtualizedListInterface<TData, TSelected = TData> {
   measureItem(id: string, index: number, height: number): void;
   toggleMaximize(itemId: string, maximizedHeight?: number): void;
   setScrollContainer(element: HTMLElement): void;
@@ -134,5 +146,5 @@ export interface VirtualizedListInterface<T> {
   scrollToTop(): void;
   initialize(signal: AbortSignal): void;
   subscribe(callback: () => void): () => void;
-  getSnapshot(): ListState<T>;
+  getSnapshot(): ListState<TSelected>;
 }

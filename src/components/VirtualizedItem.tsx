@@ -2,9 +2,9 @@ import { JSX, memo, useCallback, useEffect, useRef } from "react";
 import { VisibleItem, VirtualizedItemComponent } from "../types";
 
 // Memoized item wrapper
-interface VirtualizedItemWrapperProps<T = any> {
-  item: VisibleItem<T>;
-  ItemComponent: VirtualizedItemComponent<T>;
+interface VirtualizedItemWrapperProps<TData = unknown> {
+  item: VisibleItem<TData>;
+  ItemComponent: VirtualizedItemComponent<TData>;
   onToggleMaximize: (id: string, height?: number) => void;
   itemObserver: ResizeObserver;
 }
@@ -76,12 +76,10 @@ export const VirtualizedItem = memo(
         style={style}
         className="virtualized-item"
         data-id={item.id}
-        data-index={item.index}
       >
         <ItemComponent
           id={item.id}
           content={item.content}
-          index={item.index}
           isMaximized={item.isMaximized}
           onToggleMaximize={handleToggleMaximize}
           type={(item.content as any)?.type}
