@@ -215,6 +215,7 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
             visibleItems.push({
               id: item.id,
               content: item.content,
+              metadata: item.metadata,
               measurement,
               isMaximized: item.id === this.measurements.getMaximizedItemId(),
               maximizationConfig: this.maximizationConfig,

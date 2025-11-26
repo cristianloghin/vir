@@ -83,6 +83,7 @@ export const VirtualizedItem = memo(
           isMaximized={item.isMaximized}
           onToggleMaximize={handleToggleMaximize}
           type={(item.content as any)?.type}
+          metadata={item.metadata}
         />
       </div>
     );
