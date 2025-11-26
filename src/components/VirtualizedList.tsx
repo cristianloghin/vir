@@ -1,4 +1,12 @@
-import { JSX, memo, RefObject, useEffect, useRef } from "react";
+import {
+  JSX,
+  memo,
+  ReactNode,
+  RefObject,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { createPortal } from "react-dom";
 import { VirtualizedItem } from "./VirtualizedItem";
 import {
@@ -12,6 +20,7 @@ interface VirtualizedListProps<TData = unknown, TTransformed = TData> {
   dataProvider: DataProviderInterface<TData, TTransformed>;
   ItemComponent: VirtualizedItemComponent<TTransformed>;
   ScrollTopComponent?: React.FC<{ scrollTop: () => void }>;
+  EmptyStateComponent?: ReactNode;
   className?: string;
   style?: React.CSSProperties;
   config?: VirtualizedListConfig;
@@ -24,6 +33,7 @@ export const VirtualizedList = memo(
     dataProvider,
     ItemComponent,
     ScrollTopComponent,
+    EmptyStateComponent,
     className = "",
     style = {},
     scrollContainerRef,
@@ -69,14 +79,18 @@ export const VirtualizedList = memo(
       alignItems: "center",
       justifyContent: "center",
       height: "100%",
-      color: "#6b7280", // tailwind gray-500
       ...style,
     };
+
+    const defaultNoDataComponent = useMemo(
+      () => <div>No items to display</div>,
+      [style]
+    );
 
     if (state.viewportInfo.totalCount === 0) {
       return (
         <div className={className} style={emptyStateStyle}>
-          No items to display
+          {EmptyStateComponent || defaultNoDataComponent}
         </div>
       );
     }

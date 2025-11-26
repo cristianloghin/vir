@@ -178,14 +178,16 @@ Your item components receive these props:
 interface VirtualizedItemProps<TContent = any> {
   /** Unique identifier for the item */
   id: string;
-  /** The actual data content for this item */
-  content: TContent;
+  /** The actual data content, placeholder, or error state */
+  content: ItemContentState<TContent>;
   /** Whether this item is currently maximized/expanded */
   isMaximized: boolean;
   /** Function to toggle the maximized state */
   onToggleMaximize: () => void;
   /** Optional type/category of the item */
   type?: string;
+  /** Optional metadata object of the item */
+  metadata?: Record<string, unknown>;
 }
 ```
 
@@ -304,9 +306,22 @@ The component automatically applies appropriate styling based on configuration:
 |------|------|-------------|
 | `dataProvider` | `DataProvider<T>` | Data source for the list |
 | `ItemComponent` | `React.ComponentType` | Component to render each item |
+| `ScrollTopComponent?` | `React.FC<{ scrollTop: () => void }>` | Optional component that renders a custom scroll top button |
+| `EmptyStateComponent?` | `ReactNode` | Optional empty state component |
 | `className?` | `string` | CSS class for the container |
 | `style?` | `React.CSSProperties` | Inline styles for the container |
 | `config?` | `VirtualizedListConfig` | Configuration options |
+| `scrollContainerRef?` | `RefObject<HTMLElement>` | The scroll container reference |
+| `scrollButtonPortalRef?` | `RefObject<HTMLElement>` | Reference to a container in which to render the scroll top button |
+
+### VirtualizedListConfig
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `gap?` | `number` | 0 | The space in pixels between list items |
+| `defaultItemHeight?` | `number` | 100 | Default list item height in pixels |
+| `maximization?` | `MaximizationConfig` | see below | Controls how the maximization works in the list |
+
 
 ### MaximizationConfig
 
