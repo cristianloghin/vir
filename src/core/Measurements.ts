@@ -145,12 +145,6 @@ export class Measurements {
     return Math.max(height, 200);
   }
 
-  clearMaximization = () => {
-    this.maximizedItemId = null;
-  };
-
-  getMeasurements = () => this.measurements;
-  getSize = () => this.measurements.size;
   getMeasurementById = (id: string) => {
     const measurement = this.measurements.get(id);
     if (measurement && measurement.version === this.currentVersion) {

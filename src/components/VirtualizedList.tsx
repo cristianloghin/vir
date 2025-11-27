@@ -21,6 +21,7 @@ interface VirtualizedListProps<TData = unknown, TTransformed = TData> {
   ItemComponent: VirtualizedItemComponent<TTransformed>;
   ScrollTopComponent?: React.FC<{ scrollTop: () => void }>;
   EmptyStateComponent?: ReactNode;
+  ErrorStateComponent?: React.FC<{ error: Error }>;
   className?: string;
   style?: React.CSSProperties;
   config?: VirtualizedListConfig;
@@ -34,6 +35,7 @@ export const VirtualizedList = memo(
     ItemComponent,
     ScrollTopComponent,
     EmptyStateComponent,
+    ErrorStateComponent,
     className = "",
     style = {},
     scrollContainerRef,
@@ -84,9 +86,32 @@ export const VirtualizedList = memo(
 
     const defaultNoDataComponent = useMemo(
       () => <div>No items to display</div>,
-      [style]
+      []
     );
 
+    const DefaultErrorComponent = useMemo(
+      () => ({ error }: { error: Error }) => (
+        <div>
+          <div style={{ fontWeight: "bold", marginBottom: "8px" }}>
+            Error loading data
+          </div>
+          <div>{error.message}</div>
+        </div>
+      ),
+      []
+    );
+
+    // Show error state when there's an error and no items
+    if (state.error && state.viewportInfo.totalCount === 0) {
+      const ErrorComponent = ErrorStateComponent || DefaultErrorComponent;
+      return (
+        <div className={className} style={emptyStateStyle}>
+          <ErrorComponent error={state.error} />
+        </div>
+      );
+    }
+
+    // Show empty state when there are no items and no error
     if (state.viewportInfo.totalCount === 0) {
       return (
         <div className={className} style={emptyStateStyle}>

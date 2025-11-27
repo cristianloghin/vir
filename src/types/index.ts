@@ -10,6 +10,7 @@ export interface DataProviderInterface<TData = unknown, TSelected = TData> {
   updateRawData: (
     items: ListItem<TData>[],
     isLoading: boolean,
+    isRefetching: boolean,
     error: Error | null
   ) => void;
   updateSelector: (selector: SelectorFunction<TData, TSelected> | null) => void;
@@ -18,6 +19,7 @@ export interface DataProviderInterface<TData = unknown, TSelected = TData> {
   getTotalCount: () => number;
   getState: () => {
     isLoading: boolean;
+    isRefetching: boolean;
     error: Error | null;
     rawItemCount: number;
     selectedItemCount: number;
@@ -61,19 +63,6 @@ export interface VisibleItem<T = unknown> {
   measurement?: ItemMeasurement;
   isMaximized: boolean;
   maximizationConfig?: MaximizationConfig;
-}
-
-export interface ScrollContext {
-  type: "item" | "ratio" | "top";
-  itemId?: string;
-  scrollRatio?: number;
-}
-
-export interface SharedListState {
-  scrollTopRatio: number;
-  maximizedItemId: string | null;
-  containerElement: HTMLElement | null;
-  containerHeight: number;
 }
 
 export interface MaximizationConfig {
@@ -140,6 +129,7 @@ export interface ListState<TSelected> {
   showScrollToTop: boolean;
   maximizedItemId: string | null;
   isInitialized: boolean;
+  error: Error | null;
 }
 export interface VirtualizedListInterface<TData, TSelected = TData> {
   measureItem(id: string, index: number, height: number): void;

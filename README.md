@@ -19,7 +19,7 @@ npm install @mikrostack/vir
 ## Basic Usage
 
 ```tsx
-import { VirtualizedList, DataProvider, ListItem } from '@mikrostack/vir';
+import { VirtualizedList, useDataProvider, ListItem } from '@mikrostack/vir';
 
 const items = [
   { id: '1', title: 'Item 1', description: 'Description 1' },
@@ -27,7 +27,7 @@ const items = [
   // ... more items
 ];
 
-const ItemComponent = ({ id, content, index, isMaximized, onToggleMaximize }) => (
+const ItemComponent = ({ id, content, isMaximized, onToggleMaximize, type, metadata }) => (
   <div>
     <h3>{content.title}</h3>
     <p>{content.description}</p>
@@ -35,7 +35,7 @@ const ItemComponent = ({ id, content, index, isMaximized, onToggleMaximize }) =>
     <button onClick={onToggleMaximize}>
       {isMaximized ? 'Collapse' : 'Expand'}
     </button>
-    <small>Item #{index}</small>
+    <small>Item #{id}</small>
   </div>
 );
 
@@ -159,15 +159,22 @@ For server-side data with caching and synchronization:
 import { useQuery } from '@tanstack/react-query';
 import { useDataProvider } from '@mikrostack/vir';
 
-const { data, isLoading, error } = useQuery({
+const { data, isLoading, isRefetching, error } = useQuery({
   queryKey: ['items'],
   queryFn: () => ...,
 })
 
-const dataProvider = useDataProvider(data, (item) => ({ id: item.id, content: item }), isLoading, error, {
-  selector: (items) => {...},
-  dependencies: [deps]
-});
+const dataProvider = useDataProvider(
+  data, 
+  (item) => ({ id: item.id, content: item }), 
+  isLoading, 
+  isRefetching, 
+  error, 
+  {
+    selector: (items) => {...},
+    dependencies: [deps]
+  }
+);
 ```
 
 ## Item Component Interface
@@ -209,9 +216,9 @@ interface MyItemData {
 const MyItemComponent: VirtualizedItemComponent<MyItemData> = ({
   id,
   content,
-  index,
   isMaximized,
   onToggleMaximize,
+  metadata,
   type
 }) => {
   // Handle loading state
@@ -231,7 +238,7 @@ const MyItemComponent: VirtualizedItemComponent<MyItemData> = ({
       <h3>{content.title}</h3>
       <p>{content.description}</p>
       <span>Category: {content.category}</span>
-      <span>Position: {index}</span>
+      <span>Position: {content.position}</span>
       {isMaximized && <div>Extended content...</div>}
       <button onClick={onToggleMaximize}>Toggle</button>
     </div>
@@ -260,11 +267,12 @@ if (isPlaceholderContent(content)) {
 Control loading behavior in your data provider options:
 
 ```tsx
-const { data, isLoading, error } = useQuery(...)
+const { data, isLoading, isRefetching, error } = useQuery(...)
 const dataProvider = useDataProvider(
   data,
   (record) => ({ id: record.id, content: record }),
   isLoading,
+  isRefetching,
   error,
   {
     placeholderCount: 5, // Show 5 skeleton items
@@ -308,6 +316,7 @@ The component automatically applies appropriate styling based on configuration:
 | `ItemComponent` | `React.ComponentType` | Component to render each item |
 | `ScrollTopComponent?` | `React.FC<{ scrollTop: () => void }>` | Optional component that renders a custom scroll top button |
 | `EmptyStateComponent?` | `ReactNode` | Optional empty state component |
+| `ErrorStateComponent?` | `React.FC<{ error: Error }>` | Optional error state component |
 | `className?` | `string` | CSS class for the container |
 | `style?` | `React.CSSProperties` | Inline styles for the container |
 | `config?` | `VirtualizedListConfig` | Configuration options |

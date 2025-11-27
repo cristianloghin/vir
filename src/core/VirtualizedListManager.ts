@@ -123,6 +123,7 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
       showScrollToTop: this.scrollContainer.getShowScroll(),
       maximizedItemId: this.measurements.getMaximizedItemId(),
       isInitialized: this.isInitialized,
+      error: this.dataProvider.getState().error,
     };
   };
 

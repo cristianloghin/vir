@@ -17,6 +17,7 @@ export function useDataProvider<TData = unknown, TSelected = TData>(
   data: TData[] | undefined,
   normalizeData: NormalizeFunction<TData>,
   isLoading: boolean,
+  isRefetching: boolean,
   error: Error | null,
   options: DataProviderOptions<TData, TSelected> | undefined
 ): DataProviderInterface<TData, TSelected>;
@@ -26,6 +27,7 @@ export function useDataProvider<TData = unknown, TSelected = TData>(
   data: TData[] | undefined,
   normalizeData: NormalizeFunction<TData>,
   isLoading?: boolean,
+  isRefetching?: boolean,
   error?: Error | null,
   options?: DataProviderOptions<TData, TSelected>
 ): DataProviderInterface<TData, TSelected> {
@@ -37,6 +39,7 @@ export function useDataProvider<TData = unknown, TSelected = TData>(
     showPlaceholders: true,
   };
   const actualIsLoading = isLoading ?? false;
+  const actualIsRefetching = isRefetching ?? false;
   const actualError = error ?? null;
 
   const { selector, dependencies = [] } = actualOptions;
@@ -70,13 +73,18 @@ export function useDataProvider<TData = unknown, TSelected = TData>(
 
     if (data) {
       const normalizedData = normalizeData(data);
-      provider.updateRawData(normalizedData, actualIsLoading, actualError);
+      provider.updateRawData(
+        normalizedData,
+        actualIsLoading,
+        actualIsRefetching,
+        actualError
+      );
     } else if (error) {
-      provider.updateRawData([], false, error as Error);
+      provider.updateRawData([], false, false, error as Error);
     } else if (isLoading) {
-      provider.updateRawData([], true, null);
+      provider.updateRawData([], true, actualIsRefetching, null);
     }
-  }, [data, isLoading, error, provider, normalizeData]);
+  }, [data, isLoading, isRefetching, error, provider, normalizeData]);
 
   return dataProviderRef.current;
 }

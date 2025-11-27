@@ -101,12 +101,6 @@ export class ScrollContainer {
 
   scrollToTop = () => this.scrollToPosition(0);
 
-  setScrollTop = (value: number) => {
-    if (this.scrollContainerElement) {
-      this.scrollContainerElement.scrollTop = value;
-    }
-  };
-
   scrollToItemById = (
     itemId: string,
     isMaximized: boolean,
@@ -151,10 +145,8 @@ export class ScrollContainer {
     this.scrollToPosition(targetScrollTop);
   };
 
-  getContainer = () => this.scrollContainerElement;
   getContainerHeight = () => this.containerHeight;
   getScrollTop = () => this.scrollTop;
-  getRatio = () => this.scrollTopRatio;
   getShowScroll = () => this.showScrollToTop;
 
   private updateScrollTopRatio = () => {

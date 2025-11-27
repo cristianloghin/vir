@@ -12,6 +12,7 @@ export class DataProvider<TData = unknown, TSelected = TData>
   private selectedItems: ListItem<TSelected>[] = [];
 
   private isLoading: boolean = false;
+  private isRefetching: boolean = false;
   private error: Error | null = null;
   private subscribers = new Set<() => void>();
 
@@ -45,6 +46,7 @@ export class DataProvider<TData = unknown, TSelected = TData>
   updateRawData = (
     items: ListItem<TData>[],
     isLoading: boolean,
+    isRefetching: boolean,
     error: Error | null
   ) => {
     let hasRawDataChanged = false;
@@ -68,6 +70,7 @@ export class DataProvider<TData = unknown, TSelected = TData>
     if (hasRawDataChanged) {
       this.rawItems = items;
       this.isLoading = isLoading;
+      this.isRefetching = isRefetching;
       this.error = error;
 
       // Reapply selector when raw data changes
@@ -89,6 +92,7 @@ export class DataProvider<TData = unknown, TSelected = TData>
   getOrderedIds = () => {
     if (
       this.isLoading &&
+      !this.isRefetching &&
       this.selectedItems.length === 0 &&
       this.options.showPlaceholders
     ) {
@@ -104,14 +108,11 @@ export class DataProvider<TData = unknown, TSelected = TData>
   getTotalCount = (): number => {
     if (
       this.isLoading &&
+      !this.isRefetching &&
       this.selectedItems.length === 0 &&
       this.options.showPlaceholders
     ) {
       return this.options.placeholderCount;
-    }
-
-    if (this.error && this.selectedItems.length === 0) {
-      return 1;
     }
 
     return this.selectedItems.length;
@@ -132,6 +133,7 @@ export class DataProvider<TData = unknown, TSelected = TData>
   getState = () => {
     return {
       isLoading: this.isLoading,
+      isRefetching: this.isRefetching,
       error: this.error,
       rawItemCount: this.rawItems.length,
       selectedItemCount: this.selectedItems.length,
