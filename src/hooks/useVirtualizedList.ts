@@ -49,12 +49,15 @@ export function useVirtualizedList<TData = unknown, TTransformed = TData>(
     };
   }, [manager]);
 
-  // Handle external scroll container ref
+  // Handle external scroll container ref. Runs after every render because
+  // ref mutations don't trigger re-renders, so a dependency array on
+  // `scrollContainerRef.current` misses refs populated after mount.
+  // setScrollContainer bails out when the element is unchanged.
   useEffect(() => {
     if (scrollContainerRef?.current) {
       manager.setScrollContainer(scrollContainerRef.current);
     }
-  }, [manager, scrollContainerRef?.current]);
+  });
 
   const state = useSyncExternalStore(manager.subscribe, () => {
     const state = manager.getSnapshot();

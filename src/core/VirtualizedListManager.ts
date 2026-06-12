@@ -33,6 +33,10 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
   // New properties for data transition handling
   private scrollContainer: ScrollContainer;
   private measurements: Measurements;
+  // Last attached scroll element, kept so initialize() can re-attach after
+  // a dispose/initialize cycle (e.g. StrictMode effect re-runs) when the
+  // React ref callback won't fire again
+  private scrollElement: HTMLElement | null = null;
 
   constructor(
     dataProvider: DataProviderInterface<TData, TTransformed>,
@@ -86,6 +90,8 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
   };
 
   setScrollContainer = (element: HTMLElement) => {
+    if (element === this.scrollElement) return;
+    this.scrollElement = element;
     this.scrollContainer.init(element);
     this.isInitialized = true;
   };
@@ -106,6 +112,14 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
     abortSignal.addEventListener("abort", this.dispose, { once: true });
 
     this.setupDataSubscription();
+
+    // Re-attach the scroll container after a previous dispose: the React
+    // ref callback only fires on mount, not on effect re-runs
+    if (this.scrollElement) {
+      this.scrollContainer.init(this.scrollElement);
+      this.isInitialized = true;
+    }
+
     console.info("🔧 Initialized virtualized list with id:", this.uuid);
   };
 
@@ -242,7 +256,10 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
       this.dataUnsubscribe();
       this.dataUnsubscribe = null;
     }
-    this.subscribers.clear();
+    // Subscribers are NOT cleared here: each owns the unsubscribe function
+    // returned by subscribe(), and useSyncExternalStore's subscription must
+    // survive an initialize/dispose cycle (StrictMode re-runs effects in
+    // an order that would otherwise drop it)
     this.isInitialized = false;
   };
 }
