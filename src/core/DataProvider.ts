@@ -49,33 +49,45 @@ export class DataProvider<TData = unknown, TSelected = TData>
     isRefetching: boolean,
     error: Error | null
   ) => {
-    let hasRawDataChanged = false;
+    const stateChanged =
+      this.isLoading !== isLoading ||
+      this.isRefetching !== isRefetching ||
+      this.error !== error;
 
-    // Check if loading/error state changed
-    if (this.isLoading !== isLoading || this.error !== error) {
-      hasRawDataChanged = true;
-    }
+    const dataChanged = this.hasDataChanged(items);
 
-    // Check if data changed
-    if (
-      this.rawItems.length !== items.length ||
-      (items.length > 0 &&
-        (this.rawItems[0]?.id !== items[0]?.id ||
-          this.rawItems[this.rawItems.length - 1]?.id !==
-            items[items.length - 1]?.id))
-    ) {
-      hasRawDataChanged = true;
-    }
+    if (!stateChanged && !dataChanged) return;
 
-    if (hasRawDataChanged) {
+    this.isLoading = isLoading;
+    this.isRefetching = isRefetching;
+    this.error = error;
+
+    if (dataChanged) {
       this.rawItems = items;
-      this.isLoading = isLoading;
-      this.isRefetching = isRefetching;
-      this.error = error;
-
-      // Reapply selector when raw data changes
+      // Reapply selector when raw data changes (notifies subscribers)
       this.applySelector();
+    } else {
+      // Loading/error state changed but data didn't: skip the selector,
+      // but subscribers still need to know (placeholders, error display)
+      this.notify();
     }
+  };
+
+  // Items are compared by id and content reference, so a refetch that
+  // produces new objects is detected even when length and order are
+  // unchanged, while re-normalizing the same underlying data is not.
+  private hasDataChanged = (items: ListItem<TData>[]): boolean => {
+    if (this.rawItems === items) return false;
+    if (this.rawItems.length !== items.length) return true;
+
+    for (let i = 0; i < items.length; i++) {
+      const prev = this.rawItems[i];
+      const next = items[i];
+      if (prev.id !== next.id || prev.content !== next.content) {
+        return true;
+      }
+    }
+    return false;
   };
 
   // Update selector and dependencies
