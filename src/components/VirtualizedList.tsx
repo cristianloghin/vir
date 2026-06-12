@@ -42,14 +42,8 @@ export const VirtualizedList = memo(
     scrollButtonPortalRef,
     config,
   }: VirtualizedListProps<TData, TTransformed>) => {
-    const {
-      containerRef,
-      handleScroll,
-      measureItem,
-      toggleMaximize,
-      scrollToTop,
-      state,
-    } = useVirtualizedList(dataProvider, config, scrollContainerRef);
+    const { containerRef, measureItem, toggleMaximize, scrollToTop, state } =
+      useVirtualizedList(dataProvider, config, scrollContainerRef);
 
     const itemObserverRef = useRef<ResizeObserver | null>(null);
 
@@ -198,11 +192,10 @@ export const VirtualizedList = memo(
 
     return (
       <div className={className} style={outerStyle}>
-        <div
-          ref={containerRef}
-          onScroll={scrollContainerRef ? undefined : handleScroll}
-          style={containerStyle}
-        >
+        {/* Scrolling is handled by the listener ScrollContainer.init attaches
+            (rAF-throttled); a React onScroll here would process every event
+            twice */}
+        <div ref={containerRef} style={containerStyle}>
           {innerContent}
         </div>
         {renderScrollButton()}
