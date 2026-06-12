@@ -51,6 +51,14 @@ export interface ItemMeasurement {
   lastUsed: number;
 }
 
+// Immutable position snapshot exposed to consumers. Internal
+// ItemMeasurement objects are mutated in place and must not leak
+// into React state.
+export interface ItemPosition {
+  height: number;
+  top: number;
+}
+
 export interface ViewportInfo {
   totalHeight: number;
   totalCount: number;
@@ -60,7 +68,7 @@ export interface VisibleItem<T = unknown> {
   id: string;
   content: T;
   metadata?: Record<string, unknown>;
-  measurement?: ItemMeasurement;
+  measurement?: ItemPosition;
   isMaximized: boolean;
   maximizationConfig?: MaximizationConfig;
 }

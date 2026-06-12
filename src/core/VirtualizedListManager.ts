@@ -217,7 +217,11 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
               id: item.id,
               content: item.content,
               metadata: item.metadata,
-              measurement,
+              // Copy the position: internal measurements are mutated in
+              // place, and a live reference inside a cached snapshot makes
+              // the equality check compare an object against itself,
+              // masking position changes from React.
+              measurement: { top: itemTop, height: measurement.height },
               isMaximized: item.id === this.measurements.getMaximizedItemId(),
               maximizationConfig: this.maximizationConfig,
             });
