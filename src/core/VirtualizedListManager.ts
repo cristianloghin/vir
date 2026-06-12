@@ -215,32 +215,55 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
     const viewportBottom = scrollTop + containerHeight + overscanHeight;
 
     const visibleItems: VisibleItem<TTransformed>[] = [];
+    const count = orderedIds.length;
+    if (count === 0) return visibleItems;
 
-    for (const id of orderedIds) {
-      const measurement = this.measurements.getMeasurementById(id);
+    const maximizedItemId = this.measurements.getMaximizedItemId();
 
-      if (measurement) {
-        const itemTop = measurement.top;
-        const itemBottom = itemTop + measurement.height;
+    // Binary search for the first item whose bottom edge reaches the
+    // viewport. buildMeasurements lays items out sequentially, so both
+    // tops and bottoms are monotonically increasing. If a measurement is
+    // missing (nothing built yet), fall back to scanning from the start.
+    let lo = 0;
+    let hi = count;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      const m = this.measurements.getMeasurementById(orderedIds[mid]);
+      if (!m) {
+        lo = 0;
+        break;
+      }
+      if (m.top + m.height < viewportTop) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
 
-        // Check if item intersects with viewport
-        if (itemBottom >= viewportTop && itemTop <= viewportBottom) {
-          const item = this.dataProvider.getItemById(id);
-          if (item) {
-            visibleItems.push({
-              id: item.id,
-              content: item.content,
-              metadata: item.metadata,
-              // Copy the position: internal measurements are mutated in
-              // place, and a live reference inside a cached snapshot makes
-              // the equality check compare an object against itself,
-              // masking position changes from React.
-              measurement: { top: itemTop, height: measurement.height },
-              isMaximized: item.id === this.measurements.getMaximizedItemId(),
-              maximizationConfig: this.maximizationConfig,
-            });
-          }
-        }
+    for (let i = lo; i < count; i++) {
+      const measurement = this.measurements.getMeasurementById(orderedIds[i]);
+      if (!measurement) continue;
+
+      const itemTop = measurement.top;
+      // Tops are monotonic: everything after this is below the viewport
+      if (itemTop > viewportBottom) break;
+      // Only reachable on the unbuilt fallback path
+      if (itemTop + measurement.height < viewportTop) continue;
+
+      const item = this.dataProvider.getItemById(orderedIds[i]);
+      if (item) {
+        visibleItems.push({
+          id: item.id,
+          content: item.content,
+          metadata: item.metadata,
+          // Copy the position: internal measurements are mutated in
+          // place, and a live reference inside a cached snapshot makes
+          // the equality check compare an object against itself,
+          // masking position changes from React.
+          measurement: { top: itemTop, height: measurement.height },
+          isMaximized: item.id === maximizedItemId,
+          maximizationConfig: this.maximizationConfig,
+        });
       }
     }
 

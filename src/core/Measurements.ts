@@ -10,6 +10,10 @@ export class Measurements {
   // Height the maximized item had before maximizing, restored on collapse
   private restoreHeight: number | null = null;
   private currentVersion = 0;
+  // Total height computed during buildMeasurements; getTotalHeight is on
+  // the per-scroll hot path and must not re-sum the whole list
+  private cachedTotalHeight: number | null = null;
+  private rafScheduled = false;
 
   constructor(
     private getOrderedIds: () => string[],
@@ -45,6 +49,7 @@ export class Measurements {
 
   buildMeasurements = () => {
     const orderedIds = this.getOrderedIds();
+    const now = Date.now();
     let currentTop = 0;
 
     for (const id of orderedIds) {
@@ -52,7 +57,7 @@ export class Measurements {
 
       if (measurement) {
         measurement.top = currentTop;
-        measurement.lastUsed = Date.now();
+        measurement.lastUsed = now;
         measurement.version = this.currentVersion;
         currentTop += measurement.height + this.gap;
       } else {
@@ -60,16 +65,26 @@ export class Measurements {
           height: this.defaultItemHeight,
           top: currentTop,
           version: this.currentVersion,
-          lastUsed: Date.now(),
+          lastUsed: now,
         });
         currentTop += this.defaultItemHeight + this.gap;
       }
     }
 
-    requestAnimationFrame(() => {
-      this.cleanupStaleMeasurements();
-      this.notify();
-    });
+    // currentTop includes a trailing gap after the last item
+    this.cachedTotalHeight =
+      orderedIds.length > 0 ? currentTop - this.gap : 0;
+
+    // Coalesce: a burst of measureItem calls (one per ResizeObserver
+    // entry) must not queue one frame callback each
+    if (!this.rafScheduled) {
+      this.rafScheduled = true;
+      requestAnimationFrame(() => {
+        this.rafScheduled = false;
+        this.cleanupStaleMeasurements();
+        this.notify();
+      });
+    }
   };
 
   private cleanupStaleMeasurements = () => {
@@ -85,30 +100,16 @@ export class Measurements {
   };
 
   getTotalHeight = (): number => {
-    const orderedIds = this.getOrderedIds();
-    const totalCount = orderedIds.length;
-
-    if (this.measurements.size === 0) {
-      const totalGaps = Math.max(0, totalCount - 1) * this.gap;
-      return totalCount * this.defaultItemHeight + totalGaps;
+    // buildMeasurements runs synchronously on every data change and item
+    // measurement, so the cache is only missing before the first build:
+    // estimate from default heights there
+    if (this.cachedTotalHeight !== null) {
+      return this.cachedTotalHeight;
     }
 
-    let totalHeight = 0;
-    let measuredItems = 0;
-
-    for (const id of orderedIds) {
-      const measurement = this.measurements.get(id);
-      if (measurement && measurement.version === this.currentVersion) {
-        totalHeight += measurement.height;
-        measuredItems++;
-      }
-    }
-
-    const unmeasuredItems = totalCount - measuredItems;
-    const unmeasuredHeight = unmeasuredItems * this.defaultItemHeight;
+    const totalCount = this.getOrderedIds().length;
     const totalGaps = Math.max(0, totalCount - 1) * this.gap;
-
-    return totalHeight + unmeasuredHeight + totalGaps;
+    return totalCount * this.defaultItemHeight + totalGaps;
   };
 
   toggleMaximize = (itemId: string, customMaximizedHeight?: number) => {
