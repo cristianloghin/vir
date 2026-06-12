@@ -140,7 +140,7 @@ export interface ListState<TSelected> {
   error: Error | null;
 }
 export interface VirtualizedListInterface<TData, TSelected = TData> {
-  measureItem(id: string, index: number, height: number): void;
+  measureItem(id: string, height: number): void;
   toggleMaximize(itemId: string, maximizedHeight?: number): void;
   setScrollContainer(element: HTMLElement): void;
   handleScroll(scrollTop: number): void;

@@ -40,7 +40,9 @@ const ItemComponent = ({ id, content, isMaximized, onToggleMaximize, type, metad
 );
 
 // Create data provider
-const dataProvider = useDataProvider(items, (item) => ({ id: item.id, content: item }));
+const dataProvider = useDataProvider(items, (items) =>
+  items.map((item) => ({ id: item.id, content: item }))
+);
 
 function App() {
   return (
@@ -149,7 +151,9 @@ For static or locally managed data:
 import { useDataProvider } from '@mikrostack/vir';
 
 const items = [...]
-const dataProvider = useDataProvider(items, (item) => ({ id: item.name, content: item }));
+const dataProvider = useDataProvider(items, (items) =>
+  items.map((item) => ({ id: item.name, content: item }))
+);
 ```
 
 ### React Query Provider
@@ -166,7 +170,7 @@ const { data, isLoading, isRefetching, error } = useQuery({
 
 const dataProvider = useDataProvider(
   data, 
-  (item) => ({ id: item.id, content: item }), 
+  (items) => items.map((item) => ({ id: item.id, content: item })), 
   isLoading, 
   isRefetching, 
   error, 
@@ -270,7 +274,7 @@ Control loading behavior in your data provider options:
 const { data, isLoading, isRefetching, error } = useQuery(...)
 const dataProvider = useDataProvider(
   data,
-  (record) => ({ id: record.id, content: record }),
+  (records) => records.map((record) => ({ id: record.id, content: record })),
   isLoading,
   isRefetching,
   error,
