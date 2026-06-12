@@ -27,6 +27,14 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
   private notifyScheduled = false;
   private dataUnsubscribe: (() => void) | null = null;
 
+  // Snapshot cache: getSnapshot is called by useSyncExternalStore on every
+  // render and must return a stable reference until notify invalidates it.
+  // prevVisibleById preserves per-item identity across snapshots so memoized
+  // item components bail out when their item didn't change.
+  private snapshot: ListState<TTransformed> | null = null;
+  private prevSnapshot: ListState<TTransformed> | null = null;
+  private prevVisibleById = new Map<string, VisibleItem<TTransformed>>();
+
   // Configuration
   private maximizationConfig: MaximizationConfig;
 
@@ -131,7 +139,9 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
   };
 
   getSnapshot = (): ListState<TTransformed> => {
-    return {
+    if (this.snapshot) return this.snapshot;
+
+    const next: ListState<TTransformed> = {
       viewportInfo: this.getViewportInfo(),
       visibleItems: this.getVisibleItems(),
       showScrollToTop: this.scrollContainer.getShowScroll(),
@@ -139,6 +149,38 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
       isInitialized: this.isInitialized,
       error: this.dataProvider.getState().error,
     };
+
+    // Keep the previous snapshot when nothing observable changed so React
+    // can bail out of re-rendering entirely
+    this.snapshot =
+      this.prevSnapshot && this.snapshotsEqual(this.prevSnapshot, next)
+        ? this.prevSnapshot
+        : next;
+    this.prevSnapshot = this.snapshot;
+    return this.snapshot;
+  };
+
+  private snapshotsEqual = (
+    a: ListState<TTransformed>,
+    b: ListState<TTransformed>
+  ): boolean => {
+    if (
+      a.showScrollToTop !== b.showScrollToTop ||
+      a.maximizedItemId !== b.maximizedItemId ||
+      a.isInitialized !== b.isInitialized ||
+      a.error !== b.error ||
+      a.viewportInfo.totalHeight !== b.viewportInfo.totalHeight ||
+      a.viewportInfo.totalCount !== b.viewportInfo.totalCount ||
+      a.visibleItems.length !== b.visibleItems.length
+    ) {
+      return false;
+    }
+    // Reference comparison suffices: getVisibleItems reuses item objects
+    // whose id, content, position, and maximized state are unchanged
+    for (let i = 0; i < a.visibleItems.length; i++) {
+      if (a.visibleItems[i] !== b.visibleItems[i]) return false;
+    }
+    return true;
   };
 
   // Private methods
@@ -172,6 +214,7 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
   };
 
   private notify = () => {
+    this.snapshot = null;
     if (!this.notifyScheduled) {
       this.notifyScheduled = true;
       Promise.resolve().then(() => {
@@ -216,9 +259,13 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
 
     const visibleItems: VisibleItem<TTransformed>[] = [];
     const count = orderedIds.length;
-    if (count === 0) return visibleItems;
+    if (count === 0) {
+      this.prevVisibleById.clear();
+      return visibleItems;
+    }
 
     const maximizedItemId = this.measurements.getMaximizedItemId();
+    const nextVisibleById = new Map<string, VisibleItem<TTransformed>>();
 
     // Binary search for the first item whose bottom edge reaches the
     // viewport. buildMeasurements lays items out sequentially, so both
@@ -252,21 +299,36 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
 
       const item = this.dataProvider.getItemById(orderedIds[i]);
       if (item) {
-        visibleItems.push({
-          id: item.id,
-          content: item.content,
-          metadata: item.metadata,
-          // Copy the position: internal measurements are mutated in
-          // place, and a live reference inside a cached snapshot makes
-          // the equality check compare an object against itself,
-          // masking position changes from React.
-          measurement: { top: itemTop, height: measurement.height },
-          isMaximized: item.id === maximizedItemId,
-          maximizationConfig: this.maximizationConfig,
-        });
+        const isMaximized = item.id === maximizedItemId;
+        const prev = this.prevVisibleById.get(item.id);
+
+        // Reuse the previous wrapper when nothing about the item changed,
+        // so memoized item components skip re-rendering. Positions are
+        // copied (never live references to the mutable internal
+        // measurements), which is what makes this comparison sound.
+        const visible: VisibleItem<TTransformed> =
+          prev &&
+          prev.content === item.content &&
+          prev.metadata === item.metadata &&
+          prev.isMaximized === isMaximized &&
+          prev.measurement?.top === itemTop &&
+          prev.measurement?.height === measurement.height
+            ? prev
+            : {
+                id: item.id,
+                content: item.content,
+                metadata: item.metadata,
+                measurement: { top: itemTop, height: measurement.height },
+                isMaximized,
+                maximizationConfig: this.maximizationConfig,
+              };
+
+        nextVisibleById.set(item.id, visible);
+        visibleItems.push(visible);
       }
     }
 
+    this.prevVisibleById = nextVisibleById;
     return visibleItems;
   };
 
