@@ -7,6 +7,8 @@ import {
 export class Measurements {
   private measurements = new Map<string, ItemMeasurement>();
   private maximizedItemId: string | null = null;
+  // Height the maximized item had before maximizing, restored on collapse
+  private restoreHeight: number | null = null;
   private currentVersion = 0;
 
   constructor(
@@ -110,17 +112,48 @@ export class Measurements {
   };
 
   toggleMaximize = (itemId: string, customMaximizedHeight?: number) => {
-    const measurement = this.measurements.get(itemId);
-    if (measurement) {
-      const height = this.calculateMaximizedHeight(customMaximizedHeight);
-      measurement.height = height;
-      this.buildMeasurements();
+    const isCollapsing = this.maximizedItemId === itemId;
+    let layoutChanged = false;
+
+    // Restore the currently maximized item (whether collapsing it or
+    // switching to another item) to its pre-maximize height; the
+    // ResizeObserver corrects it if the natural size changed meanwhile.
+    if (this.maximizedItemId) {
+      const prev = this.measurements.get(this.maximizedItemId);
+      if (prev && this.restoreHeight !== null) {
+        prev.height = this.restoreHeight;
+        layoutChanged = true;
+      }
+      this.restoreHeight = null;
+      this.maximizedItemId = null;
     }
 
-    if (this.maximizedItemId === itemId) {
-      this.maximizedItemId = null;
-    } else {
+    if (!isCollapsing) {
       this.maximizedItemId = itemId;
+      const measurement = this.measurements.get(itemId);
+      if (measurement) {
+        this.restoreHeight = measurement.height;
+        // In "natural" mode the item sizes itself and is re-measured by
+        // the ResizeObserver; calculateMaximizedHeight returns 0 there,
+        // which must not be written into the measurement.
+        const height = this.calculateMaximizedHeight(customMaximizedHeight);
+        if (height > 0) {
+          measurement.height = height;
+          layoutChanged = true;
+        }
+      }
+    }
+
+    if (layoutChanged) {
+      this.buildMeasurements(); // notifies subscribers via rAF
+    } else {
+      // maximizedItemId changed without a layout change (natural mode):
+      // subscribers still need to re-render the isMaximized state
+      this.notify();
+    }
+
+    if (!isCollapsing) {
+      // After buildMeasurements so the scroll target uses fresh tops
       this.scrollToItemById(itemId);
     }
   };
