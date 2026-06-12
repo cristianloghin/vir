@@ -11,6 +11,14 @@ export class DataProvider<TData = unknown, TSelected = TData>
   private rawItems: ListItem<TData>[] = [];
   private selectedItems: ListItem<TSelected>[] = [];
 
+  // Lookup caches over selectedItems, rebuilt in applySelector.
+  // getOrderedIds/getItemById sit on the manager's per-scroll hot path,
+  // so they must not allocate or scan per call.
+  private itemsById = new Map<string, ListItem<TSelected>>();
+  private orderedIdsCache: string[] | null = null;
+  private placeholderIdsCache: string[] | null = null;
+  private placeholderItems = new Map<string, ListItem<TSelected>>();
+
   private isLoading: boolean = false;
   private isRefetching: boolean = false;
   private error: Error | null = null;
@@ -108,13 +116,19 @@ export class DataProvider<TData = unknown, TSelected = TData>
       this.selectedItems.length === 0 &&
       this.options.showPlaceholders
     ) {
-      return Array.from(
-        { length: this.options.placeholderCount },
-        (_, i) => `__placeholder-${i}`
-      );
+      if (!this.placeholderIdsCache) {
+        this.placeholderIdsCache = Array.from(
+          { length: this.options.placeholderCount },
+          (_, i) => `__placeholder-${i}`
+        );
+      }
+      return this.placeholderIdsCache;
     }
 
-    return this.selectedItems.map(({ id }) => id);
+    if (!this.orderedIdsCache) {
+      this.orderedIdsCache = this.selectedItems.map(({ id }) => id);
+    }
+    return this.orderedIdsCache;
   };
 
   getTotalCount = (): number => {
@@ -132,14 +146,20 @@ export class DataProvider<TData = unknown, TSelected = TData>
 
   getItemById = (id: string): ListItem<TSelected> | null => {
     if (id.startsWith("__placeholder-")) {
-      return {
-        id,
-        content: { __isPlaceholder: true } as TSelected,
-      };
+      // Cached so placeholder content keeps a stable identity across
+      // snapshots instead of allocating a fresh object per lookup
+      let placeholder = this.placeholderItems.get(id);
+      if (!placeholder) {
+        placeholder = {
+          id,
+          content: { __isPlaceholder: true } as TSelected,
+        };
+        this.placeholderItems.set(id, placeholder);
+      }
+      return placeholder;
     }
 
-    const item = this.selectedItems.find((item) => item.id === id);
-    return item || null;
+    return this.itemsById.get(id) ?? null;
   };
 
   getState = () => {
@@ -189,7 +209,16 @@ export class DataProvider<TData = unknown, TSelected = TData>
         `Selector error: ${(selectorError as Error).message}`
       );
     } finally {
+      this.rebuildIndexes();
       this.notify();
+    }
+  };
+
+  private rebuildIndexes = () => {
+    this.orderedIdsCache = null;
+    this.itemsById.clear();
+    for (const item of this.selectedItems) {
+      this.itemsById.set(item.id, item);
     }
   };
 }
