@@ -22,7 +22,9 @@ export const VirtualizedItem = memo(
       const itemElement = itemRef.current;
 
       if (itemElement) {
-        itemObserver.observe(itemElement);
+        // Observe the border box so reported heights include padding/border,
+        // matching what the item actually occupies in the scroll container.
+        itemObserver.observe(itemElement, { box: "border-box" });
 
         return () => {
           if (itemElement) {
@@ -44,7 +46,11 @@ export const VirtualizedItem = memo(
     const style: React.CSSProperties = item.measurement
       ? {
           position: "absolute",
-          top: item.measurement.top,
+          top: 0,
+          // Position with a compositor transform rather than `top`: `top`
+          // invalidates layout on every scroll re-position, whereas
+          // `translateY` is a paint-free composite that pairs with `contain`.
+          transform: `translateY(${item.measurement.top}px)`,
           left: 0,
           right: 0,
           contain: "layout style",

@@ -81,7 +81,6 @@ export class ScrollContainer {
       // (e.g. `height: 100%`) or by the consumer on an external container.
       const style = this.scrollContainerElement.style;
       style.overflow = "scroll";
-      style.willChange = "scroll-position";
       style.scrollbarGutter = "stable";
       style.overscrollBehavior = "contain";
 

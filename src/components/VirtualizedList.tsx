@@ -50,7 +50,14 @@ export const VirtualizedList = memo(
     if (!itemObserverRef.current) {
       itemObserverRef.current = new ResizeObserver((entries) => {
         for (const entry of entries) {
-          const height = entry.contentRect.height;
+          // Prefer borderBoxSize: contentRect excludes padding and border, so
+          // a padded item wrapper would report a height short of the space it
+          // actually occupies, corrupting offsets. Fall back to contentRect
+          // where borderBoxSize is unavailable (older engines, jsdom).
+          const borderBox = entry.borderBoxSize?.[0];
+          const height = borderBox
+            ? borderBox.blockSize
+            : entry.contentRect.height;
           const id = (entry.target as HTMLDivElement).dataset.id;
           if (id) {
             measureItem(id, height);
@@ -119,7 +126,6 @@ export const VirtualizedList = memo(
       overflow: scrollContainerRef ? "visible" : "scroll",
       scrollbarGutter: scrollContainerRef ? "auto" : "stable",
       overscrollBehavior: state.maximizedItemId ? "contain" : "auto",
-      willChange: "scroll-position",
     };
 
     const innerStyle: React.CSSProperties = {
