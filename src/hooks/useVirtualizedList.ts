@@ -53,6 +53,10 @@ export function useVirtualizedList<TData = unknown, TTransformed = TData>(
     }
   });
 
+  // Keep the visibility callback fresh: the manager is created once, but an
+  // inline `onVisibleChange` closes over consumer state that changes per render
+  manager.setOnVisibleChange(config?.onVisibleChange);
+
   // getSnapshot caches internally and returns the previous reference when
   // nothing observable changed, so no equality dance is needed here
   const state = useSyncExternalStore(manager.subscribe, manager.getSnapshot);

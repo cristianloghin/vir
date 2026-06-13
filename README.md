@@ -190,6 +190,9 @@ interface VirtualizedItemProps<TContent = unknown> {
   content: ItemContentState<TContent>;
   /** Whether this item is currently maximized/expanded */
   isMaximized: boolean;
+  /** Whether the item is within the viewport (plus `visibilityMargin`), not
+   * just rendered in the overscan window — e.g. to pause a video off screen */
+  isVisible: boolean;
   /** Function to toggle the maximized state */
   onToggleMaximize: () => void;
   /** Optional type/category of the item */
@@ -327,6 +330,74 @@ The component automatically applies appropriate styling based on configuration:
 }
 ```
 
+## Tracking visibility
+
+The list reports which items are on screen so you can coordinate work — most
+usefully **data fetching** — from *outside* the item components. There are two
+ways to consume this:
+
+- **`config.onVisibleChange`** — a callback fired (coalesced to scroll frames)
+  whenever the visible set changes, with the current ids and the enter/exit
+  transitions since the last call.
+- **`isVisible`** on each item component — for in-item concerns such as pausing
+  a video when its item scrolls off screen.
+
+"Visible" means within the viewport expanded by `visibilityMargin` (default
+200px) — narrower than the larger overscan window used for rendering, and tuned
+so a fetch can start just before the item reaches the screen.
+
+```tsx
+interface VisibilityChange {
+  visibleIds: string[]; // currently visible, in list order
+  enteredIds: string[]; // entered since the last call
+  exitedIds: string[];  // left since the last call
+}
+```
+
+### Coordinating fetches outside the list
+
+Keeping fetch logic out of item components — and caching results by id in a
+coordinator — also makes **re-entry a no-op**: when an item scrolls away and
+returns, the cached result is reused instead of re-fetching. The library
+deliberately does not cache; that policy lives in your coordinator.
+
+```tsx
+// A store/coordinator owned by the consumer (Zustand/Redux/a ref — your choice)
+const videoCache = new Map<string, VideoInfo>();
+
+<VirtualizedList
+  dataProvider={dataProvider}
+  ItemComponent={MyItem}
+  config={{
+    onVisibleChange: ({ enteredIds }) => {
+      for (const id of enteredIds) {
+        if (videoCache.has(id)) continue;          // re-entry: cached, skip
+        fetchVideoInfo(id).then((info) => {
+          videoCache.set(id, info);
+          // push `info` into your store so MyItem can render the play button
+        });
+      }
+    },
+  }}
+/>;
+```
+
+Inside the item, read the coordinator's cached result to decide what to render,
+and use `isVisible` only for presentation concerns (e.g. pause on exit):
+
+```tsx
+const MyItem: VirtualizedItemComponent<MyItemData> = ({ id, content, isVisible }) => {
+  const video = useVideoInfo(id); // from your store, populated by the coordinator
+  return (
+    <div>
+      <h3>{isRealContent(content) ? content.title : null}</h3>
+      {video?.hasVideo && <PlayButton id={id} />}
+      {video?.playing && <VideoPlayer id={id} paused={!isVisible} />}
+    </div>
+  );
+};
+```
+
 ## API Reference
 
 ### VirtualizedList Props
@@ -351,6 +422,8 @@ The component automatically applies appropriate styling based on configuration:
 | `gap?` | `number` | 0 | The space in pixels between list items |
 | `defaultItemHeight?` | `number` | 100 | Default list item height in pixels |
 | `maximization?` | `MaximizationConfig` | see below | Controls how the maximization works in the list |
+| `visibilityMargin?` | `number` | 200 | Margin (px) around the viewport for deciding visibility, so items count as visible shortly before they scroll on screen |
+| `onVisibleChange?` | `(change: VisibilityChange) => void` | - | Called when the set of visible items changes (see [Tracking visibility](#tracking-visibility)) |
 
 
 ### MaximizationConfig

@@ -70,7 +70,19 @@ export interface VisibleItem<T = unknown> {
   metadata?: Record<string, unknown>;
   measurement?: ItemPosition;
   isMaximized: boolean;
+  /** Whether the item is within the viewport (plus `visibilityMargin`), as
+   * opposed to merely rendered inside the larger overscan window. */
+  isVisible: boolean;
   maximizationConfig?: MaximizationConfig;
+}
+
+/** Reported to `config.onVisibleChange` whenever the set of visible items
+ * changes. Ids are in list order; `enteredIds`/`exitedIds` are the transitions
+ * since the previous report. */
+export interface VisibilityChange {
+  visibleIds: string[];
+  enteredIds: string[];
+  exitedIds: string[];
 }
 
 export interface MaximizationConfig {
@@ -85,6 +97,15 @@ export interface VirtualizedListConfig {
   gap?: number;
   defaultItemHeight?: number;
   maximization?: MaximizationConfig;
+  /** Extra margin (px) added around the viewport when deciding visibility, so
+   * an item counts as visible shortly before it scrolls on screen. Independent
+   * of the larger overscan window used for rendering. Defaults to 200. */
+  visibilityMargin?: number;
+  /** Called (coalesced to scroll frames) whenever the set of visible items
+   * changes. Use it to coordinate work — e.g. data fetching — outside the item
+   * components. The library reports visibility only; caching/dedup is the
+   * consumer's responsibility (and is what makes re-entry a no-op). */
+  onVisibleChange?: (change: VisibilityChange) => void;
 }
 
 // Special content types for loading and error states
@@ -118,6 +139,10 @@ export interface VirtualizedItemProps<TContent = unknown> {
   content: ItemContentState<TContent>;
   /** Whether this item is currently maximized/expanded */
   isMaximized: boolean;
+  /** Whether the item is within the viewport (plus `visibilityMargin`), not
+   * just rendered in the overscan window. Use it for in-item concerns such as
+   * pausing a video when the item scrolls off screen. */
+  isVisible: boolean;
   /** Function to toggle the maximized state */
   onToggleMaximize: () => void;
   /** Optional type/category of the item */

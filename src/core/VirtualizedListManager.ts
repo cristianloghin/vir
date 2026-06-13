@@ -3,6 +3,7 @@ import {
   ViewportInfo,
   VisibleItem,
   VirtualizedListConfig,
+  VisibilityChange,
   MaximizationConfig,
   VirtualizedListInterface,
   ListState,
@@ -22,6 +23,13 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
 
   private overscan = 5;
   private subscribers = new Set<() => void>();
+
+  // Visibility reporting: the truly-visible window (viewport + margin) is
+  // narrower than the overscan render window. Ids visible at the last emit are
+  // kept so we can diff for enter/exit transitions.
+  private visibilityMargin: number;
+  private onVisibleChange?: (change: VisibilityChange) => void;
+  private prevVisibleIds = new Set<string>();
 
   private isInitialized = false;
   private notifyScheduled = false;
@@ -54,6 +62,8 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
 
     this.defaultItemHeight = config.defaultItemHeight ?? 100;
     this.gap = config.gap ?? 0;
+    this.visibilityMargin = config.visibilityMargin ?? 200;
+    this.onVisibleChange = config.onVisibleChange;
 
     // Set default maximization config
     this.maximizationConfig = {
@@ -95,6 +105,12 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
 
   toggleMaximize = (itemId: string, maximizedHeight?: number) => {
     this.measurements.toggleMaximize(itemId, maximizedHeight);
+  };
+
+  // The hook re-syncs this every render so an inline consumer callback never
+  // goes stale; the manager itself is created once.
+  setOnVisibleChange = (callback?: (change: VisibilityChange) => void) => {
+    this.onVisibleChange = callback;
   };
 
   setScrollContainer = (element: HTMLElement) => {
@@ -219,6 +235,7 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
       this.notifyScheduled = true;
       Promise.resolve().then(() => {
         this.notifyScheduled = false;
+        this.emitVisibilityChange();
         this.subscribers.forEach((callback) => {
           try {
             callback();
@@ -256,6 +273,11 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
 
     const viewportTop = Math.max(0, scrollTop - overscanHeight);
     const viewportBottom = scrollTop + containerHeight + overscanHeight;
+
+    // The (margin-expanded) viewport, narrower than the overscan window above:
+    // items between the two are rendered but reported as not visible.
+    const visibleTop = Math.max(0, scrollTop - this.visibilityMargin);
+    const visibleBottom = scrollTop + containerHeight + this.visibilityMargin;
 
     const visibleItems: VisibleItem<TTransformed>[] = [];
     const count = orderedIds.length;
@@ -300,6 +322,8 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
       const item = this.dataProvider.getItemById(orderedIds[i]);
       if (item) {
         const isMaximized = item.id === maximizedItemId;
+        const isVisible =
+          itemTop < visibleBottom && itemTop + measurement.height > visibleTop;
         const prev = this.prevVisibleById.get(item.id);
 
         // Reuse the previous wrapper when nothing about the item changed,
@@ -311,6 +335,7 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
           prev.content === item.content &&
           prev.metadata === item.metadata &&
           prev.isMaximized === isMaximized &&
+          prev.isVisible === isVisible &&
           prev.measurement?.top === itemTop &&
           prev.measurement?.height === measurement.height
             ? prev
@@ -320,6 +345,7 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
                 metadata: item.metadata,
                 measurement: { top: itemTop, height: measurement.height },
                 isMaximized,
+                isVisible,
                 maximizationConfig: this.maximizationConfig,
               };
 
@@ -330,6 +356,66 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
 
     this.prevVisibleById = nextVisibleById;
     return visibleItems;
+  };
+
+  // Ids whose box intersects the margin-expanded viewport, in list order.
+  // Lean scan (binary search + walk) so it can run on every notify flush
+  // independently of React rendering.
+  private computeVisibleIds = (): string[] => {
+    if (!this.isInitialized) return [];
+
+    const orderedIds = this.dataProvider.getOrderedIds();
+    const count = orderedIds.length;
+    if (count === 0) return [];
+
+    const scrollTop = this.scrollContainer.getScrollTop();
+    const containerHeight = this.scrollContainer.getContainerHeight();
+    const top = Math.max(0, scrollTop - this.visibilityMargin);
+    const bottom = scrollTop + containerHeight + this.visibilityMargin;
+
+    let lo = 0;
+    let hi = count;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      const m = this.measurements.getMeasurementById(orderedIds[mid]);
+      if (!m) {
+        lo = 0;
+        break;
+      }
+      if (m.top + m.height < top) lo = mid + 1;
+      else hi = mid;
+    }
+
+    const ids: string[] = [];
+    for (let i = lo; i < count; i++) {
+      const m = this.measurements.getMeasurementById(orderedIds[i]);
+      if (!m) continue;
+      // Same strict intersection as `isVisible` in getVisibleItems: an item
+      // whose edge merely touches the window boundary does not count.
+      if (m.top >= bottom) break;
+      if (m.top + m.height <= top) continue;
+      ids.push(orderedIds[i]);
+    }
+    return ids;
+  };
+
+  private emitVisibilityChange = () => {
+    if (!this.onVisibleChange) return;
+
+    const visibleIds = this.computeVisibleIds();
+    const currentSet = new Set(visibleIds);
+
+    const enteredIds = visibleIds.filter((id) => !this.prevVisibleIds.has(id));
+    const exitedIds: string[] = [];
+    for (const id of this.prevVisibleIds) {
+      if (!currentSet.has(id)) exitedIds.push(id);
+    }
+
+    // Only report real transitions; an unchanged set is silent.
+    if (enteredIds.length === 0 && exitedIds.length === 0) return;
+
+    this.prevVisibleIds = currentSet;
+    this.onVisibleChange({ visibleIds, enteredIds, exitedIds });
   };
 
   private dispose = () => {
@@ -346,5 +432,8 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
     // survive an initialize/dispose cycle (StrictMode re-runs effects in
     // an order that would otherwise drop it)
     this.isInitialized = false;
+    // Re-init recomputes visibility from scratch, so old ids must not linger
+    // and produce phantom exit events on the next emit.
+    this.prevVisibleIds.clear();
   };
 }

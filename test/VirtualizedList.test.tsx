@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import { VirtualizedList, useDataProvider } from "../src";
-import { ListItem, VirtualizedItemProps } from "../src/types";
+import {
+  ListItem,
+  VirtualizedItemProps,
+  VirtualizedListConfig,
+} from "../src/types";
 import { MockResizeObserver } from "./setup";
 
 interface Row {
@@ -23,10 +27,14 @@ function List({
   rows,
   isLoading = false,
   error = null,
+  config,
+  ItemComponent = Item,
 }: {
   rows: Row[] | undefined;
   isLoading?: boolean;
   error?: Error | null;
+  config?: VirtualizedListConfig;
+  ItemComponent?: typeof Item;
 }) {
   const dataProvider = useDataProvider(
     rows,
@@ -36,7 +44,13 @@ function List({
     error,
     { showPlaceholders: false }
   );
-  return <VirtualizedList dataProvider={dataProvider} ItemComponent={Item} />;
+  return (
+    <VirtualizedList
+      dataProvider={dataProvider}
+      ItemComponent={ItemComponent}
+      config={config}
+    />
+  );
 }
 
 // Flush pending rAF callbacks (setTimeout-backed in test/setup.ts) and the
@@ -102,6 +116,40 @@ describe("VirtualizedList", () => {
     // The item below shifts to 250 (the border-box height), not 999.
     const item1 = container.querySelector<HTMLElement>('[data-id="row-1"]');
     expect(item1?.style.transform).toBe("translateY(250px)");
+  });
+
+  it("reports visible items to config.onVisibleChange", async () => {
+    const onVisibleChange = vi.fn();
+    render(<List rows={makeRows(100)} config={{ onVisibleChange }} />);
+    await flushUpdates();
+
+    // jsdom clientHeight 0, default margin 200 -> viewport window [0, 200]
+    // covers rows 0 and 1.
+    expect(onVisibleChange).toHaveBeenCalled();
+    const last = onVisibleChange.mock.calls.at(-1)![0];
+    expect(last.visibleIds).toEqual(["row-0", "row-1"]);
+    expect(last.enteredIds).toEqual(["row-0", "row-1"]);
+  });
+
+  it("passes isVisible to item components", async () => {
+    const VisibilityItem = ({ content, isVisible }: VirtualizedItemProps<Row>) => (
+      <div data-visible={isVisible ? "yes" : "no"}>{(content as Row).title}</div>
+    );
+    const { container } = render(
+      <List rows={makeRows(100)} ItemComponent={VisibilityItem} />
+    );
+    await flushUpdates();
+
+    // Window [0, 200]: row 0 and 1 visible; row 2 (top 200) rendered via
+    // overscan but not visible.
+    const visibleOf = (id: string) =>
+      container
+        .querySelector(`[data-id="${id}"]`)
+        ?.querySelector("[data-visible]")
+        ?.getAttribute("data-visible");
+
+    expect(visibleOf("row-0")).toBe("yes");
+    expect(visibleOf("row-2")).toBe("no");
   });
 
   it("renders the empty state when there are no items", async () => {

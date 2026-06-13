@@ -134,6 +134,77 @@ describe("VirtualizedListManager", () => {
     );
   });
 
+  it("flags viewport items visible and overscan-only items not visible", () => {
+    // 400px container, default margin 200 -> viewport window [0, 600] covers
+    // items 0..5; the overscan render window [0, 900] also renders 6..9.
+    const { manager } = createManager();
+    const { visibleItems } = manager.getSnapshot();
+    const byId = (id: string) => visibleItems.find((i) => i.id === id);
+
+    expect(byId("item-0")?.isVisible).toBe(true);
+    expect(byId("item-5")?.isVisible).toBe(true);
+    expect(byId("item-6")?.isVisible).toBe(false);
+    expect(byId("item-9")?.isVisible).toBe(false);
+  });
+
+  it("reports visibility transitions to onVisibleChange as the window moves", async () => {
+    const onVisibleChange = vi.fn();
+    const { provider, notifyData } = createFakeProvider(100);
+    const manager = new VirtualizedListManager(provider, {
+      defaultItemHeight: 100,
+      onVisibleChange,
+    });
+    notifyData();
+    manager.setScrollContainer(createScrollElement());
+    await flush();
+
+    // Initial viewport window [0, 600] -> items 0..5, all newly entered
+    const first = onVisibleChange.mock.calls.at(-1)![0];
+    expect(first.visibleIds).toEqual([
+      "item-0",
+      "item-1",
+      "item-2",
+      "item-3",
+      "item-4",
+      "item-5",
+    ]);
+    expect(first.enteredIds).toEqual(first.visibleIds);
+    expect(first.exitedIds).toEqual([]);
+
+    onVisibleChange.mockClear();
+    manager.handleScroll(1000); // window [800, 1600] -> items 8..15
+    await flush();
+
+    const second = onVisibleChange.mock.calls.at(-1)![0];
+    expect(second.visibleIds[0]).toBe("item-8");
+    expect(second.visibleIds.at(-1)).toBe("item-15");
+    expect(second.enteredIds).toContain("item-8");
+    expect(second.exitedIds).toContain("item-0");
+    expect(second.exitedIds).not.toContain("item-8");
+  });
+
+  it("stays silent when a scroll does not change the visible set", async () => {
+    const onVisibleChange = vi.fn();
+    const { provider, notifyData } = createFakeProvider(100);
+    const manager = new VirtualizedListManager(provider, {
+      defaultItemHeight: 100,
+      onVisibleChange,
+    });
+    notifyData();
+    manager.setScrollContainer(createScrollElement());
+    await flush();
+
+    manager.handleScroll(1040);
+    await flush();
+    onVisibleChange.mockClear();
+
+    // 1040 -> 1050 keeps the same visible set (no item crosses a boundary)
+    manager.handleScroll(1050);
+    await flush();
+
+    expect(onVisibleChange).not.toHaveBeenCalled();
+  });
+
   it("preserves the consumer's inline styles on the scroll element", () => {
     const { provider, notifyData } = createFakeProvider(10);
     const manager = new VirtualizedListManager(provider, {});

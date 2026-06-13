@@ -152,9 +152,21 @@ Picking up the lower-risk items from section 4 (on the branch, not yet merged):
   border box and reads `borderBoxSize.blockSize` (falling back to
   `contentRect.height`), so a padded item wrapper measures the space it actually
   occupies.
+- **Visibility contract.** The manager now distinguishes the *true* viewport
+  (expanded by a configurable `visibilityMargin`, default 200px) from the larger
+  overscan render window. It exposes this two ways: an `isVisible` flag on each
+  item (for in-item concerns like pausing off-screen video) and a
+  `config.onVisibleChange(change)` callback reporting `visibleIds` plus
+  enter/exit transitions, coalesced to scroll frames. This lets consumers
+  coordinate data fetching *outside* the item components — and, by caching in
+  that coordinator, makes re-entry a no-op instead of a re-fetch. The library
+  reports visibility only; it does not cache. Added groundwork for DOM recycling
+  (see section 4): once nodes are pooled rather than remounted, an explicit
+  visibility signal is what keeps mount-driven side effects correct.
 
-Two regression tests were added (translateY positioning; border-box height
-winning over `contentRect`), bringing the suite to 37.
+Regression tests were added for each change (translateY positioning; border-box
+height winning over `contentRect`; `isVisible` viewport-vs-overscan; visibility
+enter/exit transitions and silence on no-op scrolls), bringing the suite to 42.
 
 ---
 
@@ -168,7 +180,9 @@ improvements, roughly in descending order of value.
 - **DOM node recycling.** Items are unmounted/remounted as they scroll in and
   out. Keying by slot index (a pool of ~visible+overscan nodes) turns scroll into
   pure prop updates with no mount/unmount cost — the biggest win for heavy item
-  components.
+  components. The visibility contract added on this branch is the prerequisite:
+  once nodes are pooled, mount/unmount no longer signals enter/exit, so item
+  side effects must key off `isVisible` / `onVisibleChange` instead.
 - **Structure-of-arrays measurements.** Replace the `Map<string, {...}>` with
   parallel typed arrays plus an id→index map; tops become a prefix-sum array
   (cache-friendly binary search, zero per-item allocation). A Fenwick tree over
@@ -194,5 +208,5 @@ improvements, roughly in descending order of value.
 
 ## 5. Verification
 
-All work was verified locally (`tsc --noEmit`, `npm run build`, `npm test` — 37
+All work was verified locally (`tsc --noEmit`, `npm run build`, `npm test` — 42
 passing) and through CI on both PRs before merge.

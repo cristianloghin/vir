@@ -87,6 +87,7 @@ export const VirtualizedItem = memo(
           id={item.id}
           content={item.content}
           isMaximized={item.isMaximized}
+          isVisible={item.isVisible}
           onToggleMaximize={handleToggleMaximize}
           type={(item.content as any)?.type}
           metadata={item.metadata}

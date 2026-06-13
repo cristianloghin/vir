@@ -8,3 +8,10 @@ export {
   ListItem,
   VirtualizedItemComponent,
 } from "./types";
+
+// Public configuration / prop types
+export type {
+  VirtualizedListConfig,
+  VirtualizedItemProps,
+  VisibilityChange,
+} from "./types";
