@@ -2,6 +2,10 @@
   "name": "@mikrostack/vir",
   "version": "0.0.1",
   "description": "Virtualization List",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cristianloghin/vir"
+  },
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -23,7 +27,7 @@
     "dist"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "workspaces": [
     "playground"
