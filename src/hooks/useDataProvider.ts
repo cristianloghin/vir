@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { DataProvider } from "../core/DataProvider";
 import {
   DataProviderInterface,
@@ -42,7 +42,7 @@ export function useDataProvider<TData = unknown, TSelected = TData>(
   const actualIsRefetching = isRefetching ?? false;
   const actualError = error ?? null;
 
-  const { selector, dependencies = [] } = actualOptions;
+  const { selector, dependencies } = actualOptions;
 
   const dataProviderRef = useRef<DataProviderInterface<
     TData,
@@ -55,36 +55,47 @@ export function useDataProvider<TData = unknown, TSelected = TData>(
 
   const provider = dataProviderRef.current;
 
-  // Memoized selector with dependencies
-  const memoizedSelector = useMemo(
-    () => selector ?? null,
-    [selector, ...dependencies]
-  );
+  // Latest selector/normalizer, so inline functions don't churn effects
+  const selectorRef = useRef(selector);
+  selectorRef.current = selector;
+  const normalizeRef = useRef(normalizeData);
+  normalizeRef.current = normalizeData;
 
-  // Update selector when it changes
+  // Reapply the selector when its dependencies change. When `dependencies`
+  // is provided it is the cache key (so inline selectors work); otherwise
+  // we fall back to selector identity. Dependencies are compared manually
+  // instead of spread into a hook dependency array, which breaks the Rules
+  // of Hooks if the array length ever changes.
+  const appliedDepsRef = useRef<readonly unknown[] | null>(null);
   useEffect(() => {
-    if (!provider || !memoizedSelector) return;
-    provider.updateSelector(memoizedSelector);
-  }, [memoizedSelector, provider]);
+    if (dependencies) {
+      const applied = appliedDepsRef.current;
+      const changed =
+        !applied ||
+        applied.length !== dependencies.length ||
+        dependencies.some((dep, i) => !Object.is(dep, applied[i]));
 
-  // Update data provider when query state changes
-  useEffect(() => {
-    if (!provider) return;
-
-    if (data) {
-      const normalizedData = normalizeData(data);
-      provider.updateRawData(
-        normalizedData,
-        actualIsLoading,
-        actualIsRefetching,
-        actualError
-      );
-    } else if (error) {
-      provider.updateRawData([], false, false, error as Error);
-    } else if (isLoading) {
-      provider.updateRawData([], true, actualIsRefetching, null);
+      if (changed) {
+        appliedDepsRef.current = dependencies;
+        provider.updateSelector(selectorRef.current ?? null);
+      }
+    } else {
+      // No dependencies: updateSelector's identity check decides
+      provider.updateSelector(selectorRef.current ?? null);
     }
-  }, [data, isLoading, isRefetching, error, provider, normalizeData]);
+  });
+
+  // Update data provider when data or query state changes. All states are
+  // pushed through uniformly (including data becoming undefined without an
+  // error); updateRawData's change detection makes redundant calls no-ops.
+  useEffect(() => {
+    provider.updateRawData(
+      data ? normalizeRef.current(data) : [],
+      actualIsLoading,
+      actualIsRefetching,
+      actualError
+    );
+  }, [data, actualIsLoading, actualIsRefetching, actualError, provider]);
 
   return dataProviderRef.current;
 }

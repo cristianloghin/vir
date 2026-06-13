@@ -76,7 +76,14 @@ export class ScrollContainer {
       // Initial scroll calculation
       handleExternalScroll();
 
-      this.scrollContainerElement.style = `overflow: scroll; will-change: scroll-position; scrollbar-gutter: stable; overscroll-behavior: contain`;
+      // Set properties individually: assigning a string to `style` replaces
+      // the element's entire cssText, wiping inline styles applied by React
+      // (e.g. `height: 100%`) or by the consumer on an external container.
+      const style = this.scrollContainerElement.style;
+      style.overflow = "scroll";
+      style.willChange = "scroll-position";
+      style.scrollbarGutter = "stable";
+      style.overscrollBehavior = "contain";
 
       this.resizeObserver.observe(this.scrollContainerElement);
       this.notify();

@@ -7,7 +7,13 @@ import {
 export class Measurements {
   private measurements = new Map<string, ItemMeasurement>();
   private maximizedItemId: string | null = null;
+  // Height the maximized item had before maximizing, restored on collapse
+  private restoreHeight: number | null = null;
   private currentVersion = 0;
+  // Total height computed during buildMeasurements; getTotalHeight is on
+  // the per-scroll hot path and must not re-sum the whole list
+  private cachedTotalHeight: number | null = null;
+  private rafScheduled = false;
 
   constructor(
     private getOrderedIds: () => string[],
@@ -43,6 +49,7 @@ export class Measurements {
 
   buildMeasurements = () => {
     const orderedIds = this.getOrderedIds();
+    const now = Date.now();
     let currentTop = 0;
 
     for (const id of orderedIds) {
@@ -50,7 +57,7 @@ export class Measurements {
 
       if (measurement) {
         measurement.top = currentTop;
-        measurement.lastUsed = Date.now();
+        measurement.lastUsed = now;
         measurement.version = this.currentVersion;
         currentTop += measurement.height + this.gap;
       } else {
@@ -58,16 +65,26 @@ export class Measurements {
           height: this.defaultItemHeight,
           top: currentTop,
           version: this.currentVersion,
-          lastUsed: Date.now(),
+          lastUsed: now,
         });
         currentTop += this.defaultItemHeight + this.gap;
       }
     }
 
-    requestAnimationFrame(() => {
-      this.cleanupStaleMeasurements();
-      this.notify();
-    });
+    // currentTop includes a trailing gap after the last item
+    this.cachedTotalHeight =
+      orderedIds.length > 0 ? currentTop - this.gap : 0;
+
+    // Coalesce: a burst of measureItem calls (one per ResizeObserver
+    // entry) must not queue one frame callback each
+    if (!this.rafScheduled) {
+      this.rafScheduled = true;
+      requestAnimationFrame(() => {
+        this.rafScheduled = false;
+        this.cleanupStaleMeasurements();
+        this.notify();
+      });
+    }
   };
 
   private cleanupStaleMeasurements = () => {
@@ -83,44 +100,61 @@ export class Measurements {
   };
 
   getTotalHeight = (): number => {
-    const orderedIds = this.getOrderedIds();
-    const totalCount = orderedIds.length;
-
-    if (this.measurements.size === 0) {
-      const totalGaps = Math.max(0, totalCount - 1) * this.gap;
-      return totalCount * this.defaultItemHeight + totalGaps;
+    // buildMeasurements runs synchronously on every data change and item
+    // measurement, so the cache is only missing before the first build:
+    // estimate from default heights there
+    if (this.cachedTotalHeight !== null) {
+      return this.cachedTotalHeight;
     }
 
-    let totalHeight = 0;
-    let measuredItems = 0;
-
-    for (const id of orderedIds) {
-      const measurement = this.measurements.get(id);
-      if (measurement && measurement.version === this.currentVersion) {
-        totalHeight += measurement.height;
-        measuredItems++;
-      }
-    }
-
-    const unmeasuredItems = totalCount - measuredItems;
-    const unmeasuredHeight = unmeasuredItems * this.defaultItemHeight;
+    const totalCount = this.getOrderedIds().length;
     const totalGaps = Math.max(0, totalCount - 1) * this.gap;
-
-    return totalHeight + unmeasuredHeight + totalGaps;
+    return totalCount * this.defaultItemHeight + totalGaps;
   };
 
   toggleMaximize = (itemId: string, customMaximizedHeight?: number) => {
-    const measurement = this.measurements.get(itemId);
-    if (measurement) {
-      const height = this.calculateMaximizedHeight(customMaximizedHeight);
-      measurement.height = height;
-      this.buildMeasurements();
+    const isCollapsing = this.maximizedItemId === itemId;
+    let layoutChanged = false;
+
+    // Restore the currently maximized item (whether collapsing it or
+    // switching to another item) to its pre-maximize height; the
+    // ResizeObserver corrects it if the natural size changed meanwhile.
+    if (this.maximizedItemId) {
+      const prev = this.measurements.get(this.maximizedItemId);
+      if (prev && this.restoreHeight !== null) {
+        prev.height = this.restoreHeight;
+        layoutChanged = true;
+      }
+      this.restoreHeight = null;
+      this.maximizedItemId = null;
     }
 
-    if (this.maximizedItemId === itemId) {
-      this.maximizedItemId = null;
-    } else {
+    if (!isCollapsing) {
       this.maximizedItemId = itemId;
+      const measurement = this.measurements.get(itemId);
+      if (measurement) {
+        this.restoreHeight = measurement.height;
+        // In "natural" mode the item sizes itself and is re-measured by
+        // the ResizeObserver; calculateMaximizedHeight returns 0 there,
+        // which must not be written into the measurement.
+        const height = this.calculateMaximizedHeight(customMaximizedHeight);
+        if (height > 0) {
+          measurement.height = height;
+          layoutChanged = true;
+        }
+      }
+    }
+
+    if (layoutChanged) {
+      this.buildMeasurements(); // notifies subscribers via rAF
+    } else {
+      // maximizedItemId changed without a layout change (natural mode):
+      // subscribers still need to re-render the isMaximized state
+      this.notify();
+    }
+
+    if (!isCollapsing) {
+      // After buildMeasurements so the scroll target uses fresh tops
       this.scrollToItemById(itemId);
     }
   };

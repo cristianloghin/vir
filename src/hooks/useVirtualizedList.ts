@@ -6,12 +6,7 @@ import {
   RefObject,
 } from "react";
 import { VirtualizedListManager } from "../core/VirtualizedListManager";
-import {
-  DataProviderInterface,
-  VirtualizedListConfig,
-  ListState,
-} from "../types";
-import { isEqual } from "../utils";
+import { DataProviderInterface, VirtualizedListConfig } from "../types";
 
 // React hook with stable references
 export function useVirtualizedList<TData = unknown, TTransformed = TData>(
@@ -20,7 +15,6 @@ export function useVirtualizedList<TData = unknown, TTransformed = TData>(
   scrollContainerRef?: RefObject<HTMLElement>
 ) {
   const managerRef = useRef<VirtualizedListManager<TData, TTransformed>>(null);
-  const stateRef = useRef<ListState<TTransformed>>(null);
 
   // Create manager only once
   if (!managerRef.current) {
@@ -49,21 +43,19 @@ export function useVirtualizedList<TData = unknown, TTransformed = TData>(
     };
   }, [manager]);
 
-  // Handle external scroll container ref
+  // Handle external scroll container ref. Runs after every render because
+  // ref mutations don't trigger re-renders, so a dependency array on
+  // `scrollContainerRef.current` misses refs populated after mount.
+  // setScrollContainer bails out when the element is unchanged.
   useEffect(() => {
     if (scrollContainerRef?.current) {
       manager.setScrollContainer(scrollContainerRef.current);
     }
-  }, [manager, scrollContainerRef?.current]);
-
-  const state = useSyncExternalStore(manager.subscribe, () => {
-    const state = manager.getSnapshot();
-    if (stateRef.current && isEqual(stateRef.current, state)) {
-      return stateRef.current;
-    }
-    stateRef.current = state;
-    return state;
   });
+
+  // getSnapshot caches internally and returns the previous reference when
+  // nothing observable changed, so no equality dance is needed here
+  const state = useSyncExternalStore(manager.subscribe, manager.getSnapshot);
 
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLElement>) => {
