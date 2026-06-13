@@ -69,11 +69,9 @@ export interface VisibleItem<T = unknown> {
   content: T;
   metadata?: Record<string, unknown>;
   measurement?: ItemPosition;
-  isMaximized: boolean;
   /** Whether the item is within the viewport (plus `visibilityMargin`), as
    * opposed to merely rendered inside the larger overscan window. */
   isVisible: boolean;
-  maximizationConfig?: MaximizationConfig;
 }
 
 /** Reported to `config.onVisibleChange` whenever the set of visible items
@@ -85,18 +83,9 @@ export interface VisibilityChange {
   exitedIds: string[];
 }
 
-export interface MaximizationConfig {
-  mode: "fixed" | "natural" | "percentage" | "custom";
-  maxHeight?: number; // for 'custom' mode
-  containerPercentage?: number; // for 'percentage' mode (default 0.8)
-  clipOverflow?: boolean; // whether to add overflow:hidden
-  neighborSpace?: number; // space to leave for neighboring items
-}
-
 export interface VirtualizedListConfig {
   gap?: number;
   defaultItemHeight?: number;
-  maximization?: MaximizationConfig;
   /** Extra margin (px) added around the viewport when deciding visibility, so
    * an item counts as visible shortly before it scrolls on screen. Independent
    * of the larger overscan window used for rendering. Defaults to 200. */
@@ -137,14 +126,10 @@ export interface VirtualizedItemProps<TContent = unknown> {
   id: string;
   /** The actual data content, placeholder, or error state */
   content: ItemContentState<TContent>;
-  /** Whether this item is currently maximized/expanded */
-  isMaximized: boolean;
   /** Whether the item is within the viewport (plus `visibilityMargin`), not
    * just rendered in the overscan window. Use it for in-item concerns such as
    * pausing a video when the item scrolls off screen. */
   isVisible: boolean;
-  /** Function to toggle the maximized state */
-  onToggleMaximize: () => void;
   /** Optional type/category of the item */
   type?: string;
   /** Optional metadata object of the item */
@@ -160,17 +145,25 @@ export interface ListState<TSelected> {
   viewportInfo: ViewportInfo;
   visibleItems: VisibleItem<TSelected>[];
   showScrollToTop: boolean;
-  maximizedItemId: string | null;
   isInitialized: boolean;
   error: Error | null;
 }
 export interface VirtualizedListInterface<TData, TSelected = TData> {
   measureItem(id: string, height: number): void;
-  toggleMaximize(itemId: string, maximizedHeight?: number): void;
+  scrollToItem(id: string): void;
   setScrollContainer(element: HTMLElement): void;
   handleScroll(scrollTop: number): void;
   scrollToTop(): void;
   initialize(signal: AbortSignal): void;
   subscribe(callback: () => void): () => void;
   getSnapshot(): ListState<TSelected>;
+}
+
+/** Imperative handle exposed via the `apiRef` prop on `VirtualizedList`, for
+ * the list-internal actions a consumer cannot perform on its own. */
+export interface VirtualizedListHandle {
+  /** Scroll the list so the item with this id is in view. */
+  scrollToItem: (id: string) => void;
+  /** Scroll the list back to the top. */
+  scrollToTop: () => void;
 }

@@ -2,7 +2,7 @@ import type { ComponentType } from "react";
 import { BasicList } from "./BasicList";
 import { LargeList } from "./LargeList";
 import { VariableHeight } from "./VariableHeight";
-import { Maximization } from "./Maximization";
+import { Expandable } from "./Expandable";
 import { LoadingErrorAsync } from "./LoadingErrorAsync";
 import { VisibilityVideo } from "./VisibilityVideo";
 
@@ -35,11 +35,11 @@ export const examples: Example[] = [
     Component: VariableHeight,
   },
   {
-    id: "maximization",
-    title: "Maximization",
+    id: "expandable",
+    title: "Expandable items",
     description:
-      "Expand an item in place across the four maximization modes: fixed, natural (sizes to content), percentage, and custom.",
-    Component: Maximization,
+      "Expansion is the consumer's own state — an expanded item just renders taller and the list remeasures automatically. The imperative scrollToItem / scrollToTop (via apiRef) are the only list-internal actions.",
+    Component: Expandable,
   },
   {
     id: "states",

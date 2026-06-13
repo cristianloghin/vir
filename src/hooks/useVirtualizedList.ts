@@ -75,9 +75,9 @@ export function useVirtualizedList<TData = unknown, TTransformed = TData>(
     [manager]
   );
 
-  const toggleMaximize = useCallback(
-    (itemId: string, maximizedHeight?: number) => {
-      manager.toggleMaximize(itemId, maximizedHeight);
+  const scrollToItem = useCallback(
+    (id: string) => {
+      manager.scrollToItem(id);
     },
     [manager]
   );
@@ -90,7 +90,7 @@ export function useVirtualizedList<TData = unknown, TTransformed = TData>(
     containerRef,
     handleScroll,
     measureItem,
-    toggleMaximize,
+    scrollToItem,
     scrollToTop,
     state,
   };

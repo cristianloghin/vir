@@ -90,6 +90,25 @@ describe("VirtualizedListManager", () => {
     expect(showScrollToTop).toBe(true);
   });
 
+  it("scrolls an off-screen item into view via scrollToItem", () => {
+    const { manager, element } = createManager();
+
+    // item-50 sits at top 5000, far below the 400px viewport at scrollTop 0.
+    manager.scrollToItem("item-50");
+
+    // Minimal scroll to reveal it: bottom(5100) - containerHeight(400) = 4700.
+    expect(element.scrollTop).toBe(4700);
+  });
+
+  it("leaves the scroll position alone when the item is already visible", () => {
+    const { manager, element } = createManager();
+    element.scrollTop = 0;
+
+    manager.scrollToItem("item-1"); // top 100, already within [0, 400]
+
+    expect(element.scrollTop).toBe(0);
+  });
+
   it("returns the same snapshot reference until something changes", () => {
     const { manager } = createManager();
     expect(manager.getSnapshot()).toBe(manager.getSnapshot());

@@ -1,12 +1,13 @@
 # @mikrostack/vir
 
-A high-performance React virtual list component with advanced item maximization and data provider support.
+A high-performance React virtual list component with measured variable heights, visibility reporting, and data provider support.
 
 ## Features
 
 - **Virtual Scrolling**: Only renders visible items for optimal performance with large datasets
-- **Dynamic Heights**: Supports items with variable heights
-- **Item Maximization**: Expandable/collapsible items with configurable behavior
+- **Dynamic Heights**: Items measure their own height (ResizeObserver, border-box) — no fixed row height required
+- **Visibility reporting**: `isVisible` per item and an `onVisibleChange` callback to coordinate work (e.g. fetching) outside the items
+- **Imperative API**: `scrollToItem` / `scrollToTop` via an `apiRef`
 - **TypeScript**: Fully typed with comprehensive interfaces
 - **Smooth Transitions**: Built-in transition management for data changes
 
@@ -27,14 +28,10 @@ const items = [
   // ... more items
 ];
 
-const ItemComponent = ({ id, content, isMaximized, onToggleMaximize, type, metadata }) => (
+const ItemComponent = ({ id, content, isVisible, type, metadata }) => (
   <div>
     <h3>{content.title}</h3>
     <p>{content.description}</p>
-    {isMaximized && <div>Expanded content here...</div>}
-    <button onClick={onToggleMaximize}>
-      {isMaximized ? 'Collapse' : 'Expand'}
-    </button>
     <small>Item #{id}</small>
   </div>
 );
@@ -56,91 +53,50 @@ function App() {
 }
 ```
 
-## Maximization Configuration
+## Expanding items
 
-Control how items behave when expanded using the `config` prop:
-
-### Configuration Options
+The library has no built-in "maximize" concept. Because items measure their own
+height (ResizeObserver), **an expanded item is just one that renders taller** —
+the list remeasures and re-lays-out automatically. Keep "which item is expanded"
+as your own state:
 
 ```tsx
-interface MaximizationConfig {
-  mode: 'fixed' | 'natural' | 'percentage' | 'custom';
-  maxHeight?: number; // for 'custom' mode
-  containerPercentage?: number; // for 'percentage' mode (default 0.8)
-  clipOverflow?: boolean; // whether to add overflow:hidden (default true)
-  neighborSpace?: number; // space to leave for neighboring items (default 120)
+function List({ items }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const dataProvider = useDataProvider(items, normalize);
+
+  // The item reads its expanded flag from your state (via context, a store, or
+  // by folding it into `content`) and renders bigger when expanded.
+  return <VirtualizedList dataProvider={dataProvider} ItemComponent={Item} />;
 }
 ```
 
-### Maximization Modes
+To scroll the expanded item into view, use the imperative API below.
 
-#### 1. Fixed Mode (default)
-Items expand to a calculated height based on container percentage:
+## Imperative API (scrollToItem)
 
-```tsx
-<VirtualizedList
-  dataProvider={dataProvider}
-  ItemComponent={ItemComponent}
-  config={{
-    maximization: {
-      mode: 'fixed',
-      containerPercentage: 0.7, // 70% of container height
-      clipOverflow: true,
-      neighborSpace: 100
-    }
-  }}
-/>
-```
-
-#### 2. Natural Mode
-Items expand to their natural content height:
+Pass an `apiRef` to obtain a handle for the actions a consumer can't perform on
+its own — scrolling by item id, and scrolling to the top:
 
 ```tsx
-<VirtualizedList
-  dataProvider={dataProvider}
-  ItemComponent={ItemComponent}
-  config={{
-    maximization: {
-      mode: 'natural',
-      clipOverflow: false // Let content show naturally
-    }
-  }}
-/>
+import { useRef } from 'react';
+import { VirtualizedList, type VirtualizedListHandle } from '@mikrostack/vir';
+
+function List() {
+  const ref = useRef<VirtualizedListHandle>(null);
+  return (
+    <>
+      <button onClick={() => ref.current?.scrollToItem('item-42')}>Go to 42</button>
+      <VirtualizedList apiRef={ref} dataProvider={dataProvider} ItemComponent={Item} />
+    </>
+  );
+}
 ```
 
-#### 3. Percentage Mode
-Explicit percentage-based sizing:
-
-```tsx
-<VirtualizedList
-  dataProvider={dataProvider}
-  ItemComponent={ItemComponent}
-  config={{
-    maximization: {
-      mode: 'percentage',
-      containerPercentage: 0.6, // 60% of container
-      neighborSpace: 80
-    }
-  }}
-/>
-```
-
-#### 4. Custom Mode
-Fixed pixel height:
-
-```tsx
-<VirtualizedList
-  dataProvider={dataProvider}
-  ItemComponent={ItemComponent}
-  config={{
-    maximization: {
-      mode: 'custom',
-      maxHeight: 300, // Always 300px when expanded
-      clipOverflow: true
-    }
-  }}
-/>
-```
+> Note: `scrollToItem` to an item that hasn't been measured yet uses the
+> `defaultItemHeight` estimate for the rows above it, so in a variable-height
+> list it lands approximately. Keep `defaultItemHeight` close to your typical
+> row height for the best accuracy.
 
 ## Data Providers
 
@@ -188,13 +144,9 @@ interface VirtualizedItemProps<TContent = unknown> {
   id: string;
   /** The actual data content, placeholder, or error state */
   content: ItemContentState<TContent>;
-  /** Whether this item is currently maximized/expanded */
-  isMaximized: boolean;
   /** Whether the item is within the viewport (plus `visibilityMargin`), not
    * just rendered in the overscan window — e.g. to pause a video off screen */
   isVisible: boolean;
-  /** Function to toggle the maximized state */
-  onToggleMaximize: () => void;
   /** Optional type/category of the item */
   type?: string;
   /** Optional metadata object of the item */
@@ -220,8 +172,7 @@ interface MyItemData {
 const MyItemComponent: VirtualizedItemComponent<MyItemData> = ({
   id,
   content,
-  isMaximized,
-  onToggleMaximize,
+  isVisible,
   metadata,
   type
 }) => {
@@ -242,8 +193,6 @@ const MyItemComponent: VirtualizedItemComponent<MyItemData> = ({
       <h3>{content.title}</h3>
       <p>{content.description}</p>
       <span>Category: {content.category}</span>
-      {isMaximized && <div>Extended content...</div>}
-      <button onClick={onToggleMaximize}>Toggle</button>
     </div>
   );
 };
@@ -288,12 +237,12 @@ const dataProvider = useDataProvider(
 ### useVirtualizedList Hook
 `<VirtualizedList>` is built on the `useVirtualizedList` hook. Use the hook
 directly when you need to render the list yourself or call its imperative
-methods (`toggleMaximize`, `scrollToTop`, `measureItem`):
+methods (`scrollToItem`, `scrollToTop`, `measureItem`):
 
 ```tsx
 import { useVirtualizedList } from '@mikrostack/vir';
 
-const { containerRef, measureItem, toggleMaximize, scrollToTop, state } =
+const { containerRef, measureItem, scrollToItem, scrollToTop, state } =
   useVirtualizedList(dataProvider, config);
 ```
 
@@ -302,33 +251,13 @@ The hook returns:
 | Field | Description |
 |-------|-------------|
 | `containerRef` | Callback ref to attach to your scroll container |
-| `state` | `{ visibleItems, viewportInfo, showScrollToTop, maximizedItemId, ... }` |
-| `toggleMaximize(id, height?)` | Maximize/collapse an item, with an optional custom height |
+| `state` | `{ visibleItems, viewportInfo, showScrollToTop, isInitialized, error }` |
+| `scrollToItem(id)` | Scroll the item with this id into view |
 | `scrollToTop()` | Smooth-scroll the container to the top |
 | `measureItem(id, height)` | Report a measured height for an item |
 
-### Custom Maximized Heights
-The item component's `onToggleMaximize` always uses the configured maximization
-mode. To override the height for a specific item, call `toggleMaximize` from the
-`useVirtualizedList` hook with a second argument:
-
-```tsx
-// `toggleMaximize` from useVirtualizedList(dataProvider, config)
-toggleMaximize(itemId, 400); // expand this item to 400px
-```
-
-### Styling Maximized Items
-The component automatically applies appropriate styling based on configuration:
-
-- **Fixed/Percentage/Custom modes**: Sets explicit height and optional overflow clipping
-- **Natural mode**: Only applies overflow clipping if enabled
-
-```css
-.virtualized-item {
-  /* Your custom styles */
-  transition: height 0.3s ease; /* Smooth expand/collapse */
-}
-```
+(When using `<VirtualizedList>` rather than the hook, the same `scrollToItem` /
+`scrollToTop` are available via the [`apiRef`](#imperative-api-scrolltoitem) prop.)
 
 ## Tracking visibility
 
@@ -414,6 +343,7 @@ const MyItem: VirtualizedItemComponent<MyItemData> = ({ id, content, isVisible }
 | `config?` | `VirtualizedListConfig` | Configuration options |
 | `scrollContainerRef?` | `RefObject<HTMLElement>` | The scroll container reference |
 | `scrollButtonPortalRef?` | `RefObject<HTMLElement>` | Reference to a container in which to render the scroll top button |
+| `apiRef?` | `Ref<VirtualizedListHandle>` | Imperative handle exposing `scrollToItem(id)` and `scrollToTop()` |
 
 ### VirtualizedListConfig
 
@@ -421,20 +351,8 @@ const MyItem: VirtualizedItemComponent<MyItemData> = ({ id, content, isVisible }
 |----------|------|---------|-------------|
 | `gap?` | `number` | 0 | The space in pixels between list items |
 | `defaultItemHeight?` | `number` | 100 | Default list item height in pixels |
-| `maximization?` | `MaximizationConfig` | see below | Controls how the maximization works in the list |
 | `visibilityMargin?` | `number` | 200 | Margin (px) around the viewport for deciding visibility, so items count as visible shortly before they scroll on screen |
 | `onVisibleChange?` | `(change: VisibilityChange) => void` | - | Called when the set of visible items changes (see [Tracking visibility](#tracking-visibility)) |
-
-
-### MaximizationConfig
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `mode` | `'fixed' \| 'natural' \| 'percentage' \| 'custom'` | `'fixed'` | How items behave when maximized |
-| `maxHeight` | `number` | - | Fixed height for `custom` mode |
-| `containerPercentage` | `number` | `0.8` | Percentage of container height |
-| `clipOverflow` | `boolean` | `true` | Whether to clip overflowing content |
-| `neighborSpace` | `number` | `120` | Space to leave for neighboring items |
 
 ## License
 

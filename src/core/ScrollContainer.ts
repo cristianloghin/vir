@@ -107,11 +107,7 @@ export class ScrollContainer {
 
   scrollToTop = () => this.scrollToPosition(0);
 
-  scrollToItemById = (
-    itemId: string,
-    isMaximized: boolean,
-    measurement?: ItemMeasurement
-  ) => {
+  scrollToItemById = (itemId: string, measurement?: ItemMeasurement) => {
     if (!this.scrollContainerElement) return;
 
     if (!measurement) {
@@ -124,24 +120,18 @@ export class ScrollContainer {
       return;
     }
 
-    // Scroll to center the item if it's maximized, otherwise just make it visible
+    // Scroll the minimum needed to bring the item into view.
     const { top: itemTop, height: itemHeight } = measurement;
     const viewTop = this.scrollTop;
     const viewBottom = viewTop + this.containerHeight;
 
     let targetScrollTop;
-
-    if (isMaximized) {
-      // Center the maximized item
-      targetScrollTop = itemTop - (this.containerHeight - itemHeight) / 2;
+    if (itemTop < viewTop) {
+      targetScrollTop = itemTop;
+    } else if (itemTop + itemHeight > viewBottom) {
+      targetScrollTop = itemTop + itemHeight - this.containerHeight;
     } else {
-      if (itemTop < viewTop) {
-        targetScrollTop = itemTop;
-      } else if (itemTop + itemHeight > viewBottom) {
-        targetScrollTop = itemTop + itemHeight - this.containerHeight;
-      } else {
-        return; // Already visible
-      }
+      return; // already visible
     }
 
     const totalHeight = this.getTotalHeight();

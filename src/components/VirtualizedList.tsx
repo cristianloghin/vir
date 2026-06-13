@@ -2,8 +2,10 @@ import {
   JSX,
   memo,
   ReactNode,
+  Ref,
   RefObject,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
 } from "react";
@@ -11,6 +13,7 @@ import { createPortal } from "react-dom";
 import { VirtualizedItem } from "./VirtualizedItem";
 import {
   VirtualizedListConfig,
+  VirtualizedListHandle,
   VirtualizedItemComponent,
   DataProviderInterface,
 } from "../types";
@@ -27,6 +30,8 @@ interface VirtualizedListProps<TData = unknown, TTransformed = TData> {
   config?: VirtualizedListConfig;
   scrollContainerRef?: RefObject<HTMLElement>;
   scrollButtonPortalRef?: RefObject<HTMLElement>;
+  /** Imperative handle for list-internal actions (scrollToItem, scrollToTop). */
+  apiRef?: Ref<VirtualizedListHandle>;
 }
 
 export const VirtualizedList = memo(
@@ -41,9 +46,16 @@ export const VirtualizedList = memo(
     scrollContainerRef,
     scrollButtonPortalRef,
     config,
+    apiRef,
   }: VirtualizedListProps<TData, TTransformed>) => {
-    const { containerRef, measureItem, toggleMaximize, scrollToTop, state } =
+    const { containerRef, measureItem, scrollToItem, scrollToTop, state } =
       useVirtualizedList(dataProvider, config, scrollContainerRef);
+
+    useImperativeHandle(
+      apiRef,
+      () => ({ scrollToItem, scrollToTop }),
+      [scrollToItem, scrollToTop]
+    );
 
     const itemObserverRef = useRef<ResizeObserver | null>(null);
 
@@ -125,7 +137,6 @@ export const VirtualizedList = memo(
       height: "100%",
       overflow: scrollContainerRef ? "visible" : "scroll",
       scrollbarGutter: scrollContainerRef ? "auto" : "stable",
-      overscrollBehavior: state.maximizedItemId ? "contain" : "auto",
     };
 
     const innerStyle: React.CSSProperties = {
@@ -156,7 +167,6 @@ export const VirtualizedList = memo(
             key={item.id}
             item={item}
             ItemComponent={ItemComponent}
-            onToggleMaximize={toggleMaximize}
             itemObserver={itemObserver!}
           />
         ))}

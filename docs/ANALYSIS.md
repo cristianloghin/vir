@@ -163,10 +163,23 @@ Picking up the lower-risk items from section 4 (on the branch, not yet merged):
   reports visibility only; it does not cache. Added groundwork for DOM recycling
   (see section 4): once nodes are pooled rather than remounted, an explicit
   visibility signal is what keeps mount-driven side effects correct.
+- **Removed maximization; added `scrollToItem`.** The library no longer owns a
+  maximize concept (the single-item state, the four height modes, the
+  `restoreHeight`/clip machinery, `isMaximized`/`onToggleMaximize` props). Since
+  items already measure their own height, "expanded" is just an item that renders
+  taller — the consumer owns that state and the list remeasures automatically,
+  matching the same policy-in-the-consumer philosophy as the visibility contract.
+  The one genuinely list-internal capability, scroll-into-view, is exposed as an
+  imperative `scrollToItem(id)` (and `scrollToTop`) via an `apiRef` prop.
+- **Initialize builds from current provider data.** A manager mounting against an
+  already-populated provider (e.g. a remounted list) now builds measurements in
+  `initialize()` rather than waiting for the next data notification, which would
+  otherwise leave it rendering empty.
 
-Regression tests were added for each change (translateY positioning; border-box
-height winning over `contentRect`; `isVisible` viewport-vs-overscan; visibility
-enter/exit transitions and silence on no-op scrolls), bringing the suite to 42.
+Regression tests track each change (translateY positioning; border-box height
+winning over `contentRect`; `isVisible` viewport-vs-overscan; visibility
+enter/exit transitions and no-op-scroll silence; `scrollToItem` reveal and
+already-visible no-op), and the maximize tests were removed — 39 in total.
 
 ---
 
@@ -208,5 +221,5 @@ improvements, roughly in descending order of value.
 
 ## 5. Verification
 
-All work was verified locally (`tsc --noEmit`, `npm run build`, `npm test` — 42
+All work was verified locally (`tsc --noEmit`, `npm run build`, `npm test` — 39
 passing) and through CI on both PRs before merge.
