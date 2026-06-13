@@ -156,18 +156,15 @@ const dataProvider = useDataProvider(items, (items) =>
 );
 ```
 
-### React Query Provider
-For server-side data with caching and synchronization:
+### Async Data Source
+For server-side data with loading and error states. The provider accepts the
+loading flags from any async data layer (a fetch hook, SWR, React Query, etc.) —
+bring your own; the library has no data-fetching dependency:
 
 ```tsx
-import { useQuery } from '@tanstack/react-query';
 import { useDataProvider } from '@mikrostack/vir';
 
-const { data, isLoading, isRefetching, error } = useQuery({
-  queryKey: ['items'],
-  queryFn: () => ...,
-})
-
+// `data`, `isLoading`, `isRefetching`, and `error` come from your data layer
 const dataProvider = useDataProvider(
   data, 
   (items) => items.map((item) => ({ id: item.id, content: item })), 
@@ -186,7 +183,7 @@ const dataProvider = useDataProvider(
 Your item components receive these props:
 
 ```tsx
-interface VirtualizedItemProps<TContent = any> {
+interface VirtualizedItemProps<TContent = unknown> {
   /** Unique identifier for the item */
   id: string;
   /** The actual data content, placeholder, or error state */
@@ -242,7 +239,6 @@ const MyItemComponent: VirtualizedItemComponent<MyItemData> = ({
       <h3>{content.title}</h3>
       <p>{content.description}</p>
       <span>Category: {content.category}</span>
-      <span>Position: {content.position}</span>
       {isMaximized && <div>Extended content...</div>}
       <button onClick={onToggleMaximize}>Toggle</button>
     </div>
@@ -252,7 +248,7 @@ const MyItemComponent: VirtualizedItemComponent<MyItemData> = ({
 
 ## Handling Loading States
 
-When using React Query data providers, your components automatically receive loading and error states:
+When you pass loading and error flags to `useDataProvider`, your item components automatically receive placeholder and error states:
 
 ### Loading Skeletons
 ```tsx
@@ -271,7 +267,6 @@ if (isPlaceholderContent(content)) {
 Control loading behavior in your data provider options:
 
 ```tsx
-const { data, isLoading, isRefetching, error } = useQuery(...)
 const dataProvider = useDataProvider(
   data,
   (records) => records.map((record) => ({ id: record.id, content: record })),
@@ -287,14 +282,36 @@ const dataProvider = useDataProvider(
 
 ## Advanced Features
 
-### Custom Maximized Heights
-Override the configuration for specific items:
+### useVirtualizedList Hook
+`<VirtualizedList>` is built on the `useVirtualizedList` hook. Use the hook
+directly when you need to render the list yourself or call its imperative
+methods (`toggleMaximize`, `scrollToTop`, `measureItem`):
 
 ```tsx
-const handleToggleMaximize = (itemId: string) => {
-  // Custom height for this specific item
-  toggleMaximize(itemId, 400);
-};
+import { useVirtualizedList } from '@mikrostack/vir';
+
+const { containerRef, measureItem, toggleMaximize, scrollToTop, state } =
+  useVirtualizedList(dataProvider, config);
+```
+
+The hook returns:
+
+| Field | Description |
+|-------|-------------|
+| `containerRef` | Callback ref to attach to your scroll container |
+| `state` | `{ visibleItems, viewportInfo, showScrollToTop, maximizedItemId, ... }` |
+| `toggleMaximize(id, height?)` | Maximize/collapse an item, with an optional custom height |
+| `scrollToTop()` | Smooth-scroll the container to the top |
+| `measureItem(id, height)` | Report a measured height for an item |
+
+### Custom Maximized Heights
+The item component's `onToggleMaximize` always uses the configured maximization
+mode. To override the height for a specific item, call `toggleMaximize` from the
+`useVirtualizedList` hook with a second argument:
+
+```tsx
+// `toggleMaximize` from useVirtualizedList(dataProvider, config)
+toggleMaximize(itemId, 400); // expand this item to 400px
 ```
 
 ### Styling Maximized Items
