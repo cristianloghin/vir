@@ -25,11 +25,15 @@
   "engines": {
     "node": ">=20"
   },
+  "workspaces": [
+    "playground"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "playground": "npm run dev --workspace playground"
   },
   "author": "hi.cris.loghin@gmail.com",
   "license": "ISC",
