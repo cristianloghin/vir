@@ -135,26 +135,67 @@ compare to one binary search plus a handful of reference checks.
 - Fixed a non-existent `content.position` field reference and the
   `VirtualizedItemProps` default type parameter.
 
+### Packaging & rendering — branch `outstanding-fixes`
+
+Picking up the lower-risk items from section 4 (on the branch, not yet merged):
+
+- **Packaging.** Added a conditional `exports` map (types-first per condition),
+  `"sideEffects": false`, and `engines.node` `">=20"`; configured tsup to drop
+  the debug `console.info` logs from the bundle via esbuild `pure`. The
+  `console.error` diagnostics are kept on purpose — they report subscriber and
+  selector failures to consumers.
+- **`transform: translateY()` positioning.** Measured items position with a
+  compositor transform and `top: 0` instead of `top`, so scroll re-positioning
+  no longer invalidates layout. Dropped `will-change: scroll-position` from both
+  the internal and external scrollers.
+- **`borderBoxSize` measurement.** The item `ResizeObserver` now observes the
+  border box and reads `borderBoxSize.blockSize` (falling back to
+  `contentRect.height`), so a padded item wrapper measures the space it actually
+  occupies.
+- **Visibility contract.** The manager now distinguishes the *true* viewport
+  (expanded by a configurable `visibilityMargin`, default 200px) from the larger
+  overscan render window. It exposes this two ways: an `isVisible` flag on each
+  item (for in-item concerns like pausing off-screen video) and a
+  `config.onVisibleChange(change)` callback reporting `visibleIds` plus
+  enter/exit transitions, coalesced to scroll frames. This lets consumers
+  coordinate data fetching *outside* the item components — and, by caching in
+  that coordinator, makes re-entry a no-op instead of a re-fetch. The library
+  reports visibility only; it does not cache. Added groundwork for DOM recycling
+  (see section 4): once nodes are pooled rather than remounted, an explicit
+  visibility signal is what keeps mount-driven side effects correct.
+- **Removed maximization; added `scrollToItem`.** The library no longer owns a
+  maximize concept (the single-item state, the four height modes, the
+  `restoreHeight`/clip machinery, `isMaximized`/`onToggleMaximize` props). Since
+  items already measure their own height, "expanded" is just an item that renders
+  taller — the consumer owns that state and the list remeasures automatically,
+  matching the same policy-in-the-consumer philosophy as the visibility contract.
+  The one genuinely list-internal capability, scroll-into-view, is exposed as an
+  imperative `scrollToItem(id)` (and `scrollToTop`) via an `apiRef` prop.
+- **Initialize builds from current provider data.** A manager mounting against an
+  already-populated provider (e.g. a remounted list) now builds measurements in
+  `initialize()` rather than waiting for the next data notification, which would
+  otherwise leave it rendering empty.
+
+Regression tests track each change (translateY positioning; border-box height
+winning over `contentRect`; `isVisible` viewport-vs-overscan; visibility
+enter/exit transitions and no-op-scroll silence; `scrollToItem` reveal and
+already-visible no-op), and the maximize tests were removed — 39 in total.
+
 ---
 
 ## 4. Outstanding work
 
-None of the below is required for correctness; they are further performance and
-packaging improvements, roughly in descending order of value.
+None of the below is required for correctness; they are further performance
+improvements, roughly in descending order of value.
 
 ### Rendering / measurement
 
-- **`transform: translateY()` positioning.** Position items with a compositor
-  transform instead of `top`, which invalidates layout. Combined with the
-  existing `contain`, scroll re-positioning becomes paint-free. Also drop
-  `will-change: scroll-position` on large scrollers.
-- **`borderBoxSize` measurement.** `contentRect.height` excludes padding/border,
-  so a padded item wrapper silently corrupts measurements. Measure with
-  `ResizeObserver`'s `borderBoxSize` (`box: 'border-box'`).
 - **DOM node recycling.** Items are unmounted/remounted as they scroll in and
   out. Keying by slot index (a pool of ~visible+overscan nodes) turns scroll into
   pure prop updates with no mount/unmount cost — the biggest win for heavy item
-  components.
+  components. The visibility contract added on this branch is the prerequisite:
+  once nodes are pooled, mount/unmount no longer signals enter/exit, so item
+  side effects must key off `isVisible` / `onVisibleChange` instead.
 - **Structure-of-arrays measurements.** Replace the `Map<string, {...}>` with
   parallel typed arrays plus an id→index map; tops become a prefix-sum array
   (cache-friendly binary search, zero per-item allocation). A Fenwick tree over
@@ -176,16 +217,9 @@ packaging improvements, roughly in descending order of value.
   per-scroll math is already sub-microsecond, and the DOM/React render cost a
   worker cannot touch is where a list's frame budget actually goes.
 
-### Packaging
-
-- Add `"sideEffects": false` and a proper `"exports"` map to `package.json`.
-- Strip `console.info`/`console.error` debug calls from production builds (tsup
-  `drop`/`define`).
-- Optionally add an `engines` field pinning the supported Node range.
-
 ---
 
 ## 5. Verification
 
-All work was verified locally (`tsc --noEmit`, `npm run build`, `npm test` — 35
+All work was verified locally (`tsc --noEmit`, `npm run build`, `npm test` — 39
 passing) and through CI on both PRs before merge.

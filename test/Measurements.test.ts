@@ -1,30 +1,17 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { Measurements } from "../src/core/Measurements";
-import { MaximizationConfig } from "../src/types";
 
 const createMeasurements = (
   ids: string[],
-  maximization: Partial<MaximizationConfig> = {},
-  { defaultItemHeight = 100, gap = 10, containerHeight = 600 } = {}
+  { defaultItemHeight = 100, gap = 10 } = {}
 ) => {
-  const notify = vi.fn();
-  const scrollToItemById = vi.fn();
   const measurements = new Measurements(
     () => ids,
-    notify,
-    scrollToItemById,
-    () => containerHeight,
-    {
-      mode: "fixed",
-      containerPercentage: 0.8,
-      clipOverflow: true,
-      neighborSpace: 120,
-      ...maximization,
-    },
+    () => {},
     defaultItemHeight,
     gap
   );
-  return { measurements, notify, scrollToItemById };
+  return { measurements };
 };
 
 describe("Measurements", () => {
@@ -64,77 +51,5 @@ describe("Measurements", () => {
 
     measurements.measureItem("a", 0);
     expect(measurements.getMeasurementById("a")?.height).toBe(150);
-  });
-
-  describe("toggleMaximize", () => {
-    it("applies the calculated height and scrolls to the item", () => {
-      const { measurements, scrollToItemById } = createMeasurements([
-        "a",
-        "b",
-        "c",
-      ]);
-      measurements.buildMeasurements();
-
-      measurements.toggleMaximize("b");
-
-      // min(600 * 0.8, 600 - 120) = 480
-      expect(measurements.getMeasurementById("b")?.height).toBe(480);
-      expect(measurements.getMeasurementById("c")?.top).toBe(110 + 480 + 10);
-      expect(measurements.getMaximizedItemId()).toBe("b");
-      expect(scrollToItemById).toHaveBeenCalledWith("b");
-    });
-
-    it("restores the pre-maximize height on collapse", () => {
-      const { measurements, scrollToItemById } = createMeasurements([
-        "a",
-        "b",
-        "c",
-      ]);
-      measurements.buildMeasurements();
-      measurements.measureItem("b", 140);
-
-      measurements.toggleMaximize("b");
-      measurements.toggleMaximize("b");
-
-      expect(measurements.getMeasurementById("b")?.height).toBe(140);
-      expect(measurements.getMaximizedItemId()).toBeNull();
-      // No scroll on collapse
-      expect(scrollToItemById).toHaveBeenCalledTimes(1);
-    });
-
-    it("restores the previous item when maximizing another", () => {
-      const { measurements } = createMeasurements(["a", "b", "c"]);
-      measurements.buildMeasurements();
-
-      measurements.toggleMaximize("a");
-      measurements.toggleMaximize("b");
-
-      expect(measurements.getMeasurementById("a")?.height).toBe(100);
-      expect(measurements.getMeasurementById("b")?.height).toBe(480);
-      expect(measurements.getMaximizedItemId()).toBe("b");
-    });
-
-    it("uses a custom height when provided", () => {
-      const { measurements } = createMeasurements(["a", "b"]);
-      measurements.buildMeasurements();
-
-      measurements.toggleMaximize("a", 300);
-
-      expect(measurements.getMeasurementById("a")?.height).toBe(300);
-    });
-
-    it("leaves the height alone in natural mode but still notifies", () => {
-      const { measurements, notify } = createMeasurements(["a", "b"], {
-        mode: "natural",
-      });
-      measurements.buildMeasurements();
-      notify.mockClear();
-
-      measurements.toggleMaximize("a");
-
-      expect(measurements.getMeasurementById("a")?.height).toBe(100);
-      expect(measurements.getMaximizedItemId()).toBe("a");
-      expect(notify).toHaveBeenCalled();
-    });
   });
 });

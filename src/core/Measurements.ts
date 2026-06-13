@@ -1,14 +1,7 @@
-import {
-  DataProviderInterface,
-  ItemMeasurement,
-  MaximizationConfig,
-} from "../types";
+import { ItemMeasurement } from "../types";
 
 export class Measurements {
   private measurements = new Map<string, ItemMeasurement>();
-  private maximizedItemId: string | null = null;
-  // Height the maximized item had before maximizing, restored on collapse
-  private restoreHeight: number | null = null;
   private currentVersion = 0;
   // Total height computed during buildMeasurements; getTotalHeight is on
   // the per-scroll hot path and must not re-sum the whole list
@@ -18,9 +11,6 @@ export class Measurements {
   constructor(
     private getOrderedIds: () => string[],
     private notify: () => void,
-    private scrollToItemById: (id: string) => void,
-    private getContainerHeight: () => number,
-    private maximizationConfig: MaximizationConfig,
     private defaultItemHeight: number,
     private gap: number
   ) {}
@@ -112,73 +102,6 @@ export class Measurements {
     return totalCount * this.defaultItemHeight + totalGaps;
   };
 
-  toggleMaximize = (itemId: string, customMaximizedHeight?: number) => {
-    const isCollapsing = this.maximizedItemId === itemId;
-    let layoutChanged = false;
-
-    // Restore the currently maximized item (whether collapsing it or
-    // switching to another item) to its pre-maximize height; the
-    // ResizeObserver corrects it if the natural size changed meanwhile.
-    if (this.maximizedItemId) {
-      const prev = this.measurements.get(this.maximizedItemId);
-      if (prev && this.restoreHeight !== null) {
-        prev.height = this.restoreHeight;
-        layoutChanged = true;
-      }
-      this.restoreHeight = null;
-      this.maximizedItemId = null;
-    }
-
-    if (!isCollapsing) {
-      this.maximizedItemId = itemId;
-      const measurement = this.measurements.get(itemId);
-      if (measurement) {
-        this.restoreHeight = measurement.height;
-        // In "natural" mode the item sizes itself and is re-measured by
-        // the ResizeObserver; calculateMaximizedHeight returns 0 there,
-        // which must not be written into the measurement.
-        const height = this.calculateMaximizedHeight(customMaximizedHeight);
-        if (height > 0) {
-          measurement.height = height;
-          layoutChanged = true;
-        }
-      }
-    }
-
-    if (layoutChanged) {
-      this.buildMeasurements(); // notifies subscribers via rAF
-    } else {
-      // maximizedItemId changed without a layout change (natural mode):
-      // subscribers still need to re-render the isMaximized state
-      this.notify();
-    }
-
-    if (!isCollapsing) {
-      // After buildMeasurements so the scroll target uses fresh tops
-      this.scrollToItemById(itemId);
-    }
-  };
-
-  private calculateMaximizedHeight(customHeight?: number): number {
-    if (customHeight) return customHeight;
-    if (this.maximizationConfig.mode === "natural") return 0;
-    if (this.maximizationConfig.mode === "custom") {
-      return (
-        this.maximizationConfig.maxHeight || this.getContainerHeight() * 0.8
-      );
-    }
-
-    const containerHeight = this.getContainerHeight();
-    const percentage = this.maximizationConfig.containerPercentage || 0.8;
-    const neighborSpace = this.maximizationConfig.neighborSpace || 120;
-
-    let height = Math.round(containerHeight * percentage);
-    if (height > containerHeight - neighborSpace) {
-      height = containerHeight - neighborSpace;
-    }
-    return Math.max(height, 200);
-  }
-
   getMeasurementById = (id: string) => {
     const measurement = this.measurements.get(id);
     if (measurement && measurement.version === this.currentVersion) {
@@ -186,5 +109,4 @@ export class Measurements {
     }
     return;
   };
-  getMaximizedItemId = () => this.maximizedItemId;
 }

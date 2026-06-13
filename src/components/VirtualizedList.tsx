@@ -2,8 +2,10 @@ import {
   JSX,
   memo,
   ReactNode,
+  Ref,
   RefObject,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
 } from "react";
@@ -11,6 +13,7 @@ import { createPortal } from "react-dom";
 import { VirtualizedItem } from "./VirtualizedItem";
 import {
   VirtualizedListConfig,
+  VirtualizedListHandle,
   VirtualizedItemComponent,
   DataProviderInterface,
 } from "../types";
@@ -27,6 +30,8 @@ interface VirtualizedListProps<TData = unknown, TTransformed = TData> {
   config?: VirtualizedListConfig;
   scrollContainerRef?: RefObject<HTMLElement>;
   scrollButtonPortalRef?: RefObject<HTMLElement>;
+  /** Imperative handle for list-internal actions (scrollToItem, scrollToTop). */
+  apiRef?: Ref<VirtualizedListHandle>;
 }
 
 export const VirtualizedList = memo(
@@ -41,16 +46,30 @@ export const VirtualizedList = memo(
     scrollContainerRef,
     scrollButtonPortalRef,
     config,
+    apiRef,
   }: VirtualizedListProps<TData, TTransformed>) => {
-    const { containerRef, measureItem, toggleMaximize, scrollToTop, state } =
+    const { containerRef, measureItem, scrollToItem, scrollToTop, state } =
       useVirtualizedList(dataProvider, config, scrollContainerRef);
+
+    useImperativeHandle(
+      apiRef,
+      () => ({ scrollToItem, scrollToTop }),
+      [scrollToItem, scrollToTop]
+    );
 
     const itemObserverRef = useRef<ResizeObserver | null>(null);
 
     if (!itemObserverRef.current) {
       itemObserverRef.current = new ResizeObserver((entries) => {
         for (const entry of entries) {
-          const height = entry.contentRect.height;
+          // Prefer borderBoxSize: contentRect excludes padding and border, so
+          // a padded item wrapper would report a height short of the space it
+          // actually occupies, corrupting offsets. Fall back to contentRect
+          // where borderBoxSize is unavailable (older engines, jsdom).
+          const borderBox = entry.borderBoxSize?.[0];
+          const height = borderBox
+            ? borderBox.blockSize
+            : entry.contentRect.height;
           const id = (entry.target as HTMLDivElement).dataset.id;
           if (id) {
             measureItem(id, height);
@@ -118,8 +137,6 @@ export const VirtualizedList = memo(
       height: "100%",
       overflow: scrollContainerRef ? "visible" : "scroll",
       scrollbarGutter: scrollContainerRef ? "auto" : "stable",
-      overscrollBehavior: state.maximizedItemId ? "contain" : "auto",
-      willChange: "scroll-position",
     };
 
     const innerStyle: React.CSSProperties = {
@@ -150,7 +167,6 @@ export const VirtualizedList = memo(
             key={item.id}
             item={item}
             ItemComponent={ItemComponent}
-            onToggleMaximize={toggleMaximize}
             itemObserver={itemObserver!}
           />
         ))}
