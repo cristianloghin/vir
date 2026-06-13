@@ -1,10 +1,14 @@
-# Library Analysis & Work Log
+# Work Log — Improvements & Fixes
 
-Performance and correctness review of `@mikrostack/vir`, a React virtualized-list
-library, plus the work completed in response and the items still outstanding.
+A running log of the correctness fixes, performance work, and API changes made to
+`@mikrostack/vir`, a React virtualized-list library, plus the items still
+outstanding. Completed work is recorded in section 3; the live backlog is
+section 4. Newest work is appended.
 
-- **Reviewed:** June 2026, against `main` at `6a3f045`.
-- **Delivered:** PR #5 (fixes, performance, tests, CI) and PR #6 (docs), both merged.
+- **Origin:** a performance and correctness review in June 2026 against `main`
+  at `6a3f045` (sections 1–2 capture that initial pass).
+- **Merged so far:** PR #5 (fixes, performance, tests, CI), #6 (docs), and #8
+  (packaging, rendering, visibility API, playground, `scrollToItem`).
 
 ---
 
@@ -135,9 +139,9 @@ compare to one binary search plus a handful of reference checks.
 - Fixed a non-existent `content.position` field reference and the
   `VirtualizedItemProps` default type parameter.
 
-### Packaging & rendering — branch `outstanding-fixes`
+### Packaging, rendering, visibility & API — PR #8
 
-Picking up the lower-risk items from section 4 (on the branch, not yet merged):
+Picking up the lower-risk items from section 4, plus an API reshape:
 
 - **Packaging.** Added a conditional `exports` map (types-first per condition),
   `"sideEffects": false`, and `engines.node` `">=20"`; configured tsup to drop
@@ -181,6 +185,32 @@ winning over `contentRect`; `isVisible` viewport-vs-overscan; visibility
 enter/exit transitions and no-op-scroll silence; `scrollToItem` reveal and
 already-visible no-op), and the maximize tests were removed — 39 in total.
 
+### Bug sweep & this log's rename — branch `bug-sweep-and-doc`
+
+A final adversarial review (two independent passes over the core and the React
+layer). Most paths held up; the fixes:
+
+- **`getViewportInfo` dropped the gap term** before initialization, so the spacer
+  height jumped once the scroll container attached (only observable with
+  `gap > 0`). It now delegates to the gap-aware `getTotalHeight` in every state.
+- **Resize/scroll race on `scrollTopRatio`.** The proportional scroll-restore
+  after a container resize read `this.scrollTopRatio` in a deferred rAF, which a
+  concurrent scroll could clobber; the ratio is now captured in a local.
+- **Unbuilt-fallback scans** in `getVisibleItems` / `computeVisibleIds` kept the
+  monotonic early-`break`, and `scrollToItem`'s default-height estimate ignored
+  `gap`. Both are defensive paths *not* reachable under current invariants
+  (`buildMeasurements` always populates every id at the current version), but are
+  now correct should those invariants change.
+- **ResizeObserver hygiene.** The item observer is no longer nulled in its effect
+  cleanup, avoiding a transient second observer across a StrictMode remount.
+
+A regression test covers the gap-in-`totalHeight` fix — 40 in total. This file
+was also renamed from `ANALYSIS.md` to reflect its function as a running log.
+
+Separately, PR #9 lifted the playground video example's `playing` flag into its
+coordinator so it survives an item scrolling off-screen and back — modelling
+that per-item state belongs outside the (unmounted-while-off-screen) item.
+
 ---
 
 ## 4. Outstanding work
@@ -221,5 +251,9 @@ improvements, roughly in descending order of value.
 
 ## 5. Verification
 
-All work was verified locally (`tsc --noEmit`, `npm run build`, `npm test` — 39
-passing) and through CI on both PRs before merge.
+All work is verified locally (`tsc --noEmit`, `npm run build`, `npm test` — 40
+passing) and through CI before merge. Library changes are also smoke-tested in
+the playground (`npm run playground`). Note: the test runner currently requires
+Node 22+ locally (a transitive dep is ESM-only and the rolldown native binding
+hits the npm optional-deps bug on older Node); the build and the playground run
+on Node 20. CI runs Node 24.

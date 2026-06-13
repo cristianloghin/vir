@@ -16,7 +16,8 @@ export class ScrollContainer {
     private getOrderedIds: () => string[],
     private notify: () => void,
     private getTotalHeight: () => number,
-    private defaultItemHeight: number
+    private defaultItemHeight: number,
+    private gap: number
   ) {}
 
   init = (element: HTMLElement) => {
@@ -45,21 +46,24 @@ export class ScrollContainer {
           const newHeight = entry.contentRect.height;
           if (newHeight !== this.containerHeight && newHeight > 0) {
             const oldTotalHeight = this.getTotalHeight();
-            if (oldTotalHeight > 0) {
-              this.scrollTopRatio =
-                this.scrollTop /
-                Math.max(1, oldTotalHeight - this.containerHeight);
-            }
+            // Capture the pre-resize ratio in a local. A scroll event firing
+            // before the deferred rAF runs calls updateScrollTopRatio and would
+            // otherwise clobber this.scrollTopRatio, restoring the wrong offset.
+            const ratio =
+              oldTotalHeight > 0
+                ? this.scrollTop /
+                  Math.max(1, oldTotalHeight - this.containerHeight)
+                : this.scrollTopRatio;
+            this.scrollTopRatio = ratio;
 
             this.containerHeight = newHeight;
 
             requestAnimationFrame(() => {
               const targetElement = this.scrollContainerElement;
-              if (targetElement && this.scrollTopRatio > 0) {
+              if (targetElement && ratio > 0) {
                 const newTotalHeight = this.getTotalHeight();
                 const newScrollTop =
-                  this.scrollTopRatio *
-                  Math.max(0, newTotalHeight - this.containerHeight);
+                  ratio * Math.max(0, newTotalHeight - this.containerHeight);
                 targetElement.scrollTop = Math.max(0, newScrollTop);
               }
             });
@@ -115,7 +119,12 @@ export class ScrollContainer {
       const itemIndex = orderedIds.findIndex((id) => id === itemId);
 
       if (itemIndex !== -1) {
-        this.scrollToPosition(itemIndex * this.defaultItemHeight, false);
+        // Estimate the offset with the gap included, matching how
+        // buildMeasurements lays unmeasured items out.
+        this.scrollToPosition(
+          itemIndex * (this.defaultItemHeight + this.gap),
+          false
+        );
       }
       return;
     }
