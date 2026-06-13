@@ -3,7 +3,6 @@ import {
   useCallback,
   useContext,
   useRef,
-  useState,
   useSyncExternalStore,
 } from "react";
 import {
@@ -32,6 +31,9 @@ const IDLE: VideoState = { status: "idle" };
 
 class VideoCoordinator {
   private byId = new Map<string, VideoState>();
+  // Which items are currently playing. Held here, not in the item component,
+  // so it survives the item unmounting/remounting as it scrolls off and back.
+  private playingIds = new Set<string>();
   private listeners = new Set<() => void>();
   private fetches = 0;
 
@@ -44,6 +46,13 @@ class VideoCoordinator {
 
   getState = (id: string): VideoState => this.byId.get(id) ?? IDLE;
   getFetchCount = () => this.fetches;
+  isPlaying = (id: string): boolean => this.playingIds.has(id);
+
+  setPlaying = (id: string, playing: boolean) => {
+    if (playing) this.playingIds.add(id);
+    else this.playingIds.delete(id);
+    this.emit();
+  };
 
   // Called for items entering the viewport. The cache check is what makes
   // re-entry free: an id that's already been looked up is skipped.
@@ -76,13 +85,22 @@ function useVideoState(id: string): VideoState {
   );
 }
 
+function usePlaying(id: string): boolean {
+  const coordinator = useContext(CoordinatorContext)!;
+  return useSyncExternalStore(coordinator.subscribe, () =>
+    coordinator.isPlaying(id)
+  );
+}
+
 // ---------------------------------------------------------------------------
-// The item reads the coordinator's cached result; it does not fetch. It uses
-// `isVisible` only for presentation — pausing the player when off screen.
+// The item reads the coordinator's cached result and play state; it holds no
+// state of its own, so it survives scrolling off-screen (unmount) and back.
+// `isVisible` is used only for presentation — pausing the player off screen.
 // ---------------------------------------------------------------------------
 const VideoItem: VirtualizedItemComponent<Row> = ({ id, content, isVisible }) => {
+  const coordinator = useContext(CoordinatorContext)!;
   const state = useVideoState(id);
-  const [playing, setPlaying] = useState(false);
+  const playing = usePlaying(id);
   if (!isRealContent(content)) return null;
 
   return (
@@ -98,7 +116,7 @@ const VideoItem: VirtualizedItemComponent<Row> = ({ id, content, isVisible }) =>
         )}
         {state.status === "none" && <span className="badge">no video</span>}
         {state.status === "available" && !playing && (
-          <button className="btn" onClick={() => setPlaying(true)}>
+          <button className="btn" onClick={() => coordinator.setPlaying(id, true)}>
             ▶ Play video
           </button>
         )}
