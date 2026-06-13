@@ -79,6 +79,18 @@ describe("VirtualizedListManager", () => {
     expect(visibleItems[3].measurement).toEqual({ top: 300, height: 100 });
   });
 
+  it("includes gap in totalHeight before the scroll container is attached", () => {
+    const { provider, notifyData } = createFakeProvider(10);
+    const manager = new VirtualizedListManager(provider, {
+      defaultItemHeight: 100,
+      gap: 10,
+    });
+    notifyData(); // builds measurements; not yet initialized (no scroll element)
+
+    // 10 * 100 + 9 gaps * 10 = 1090, not 1000 (gap must not be dropped)
+    expect(manager.getSnapshot().viewportInfo.totalHeight).toBe(1090);
+  });
+
   it("moves the window when scrolling", () => {
     const { manager } = createManager();
     manager.handleScroll(5000);

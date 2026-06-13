@@ -74,7 +74,8 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
       this.getOrderedIds,
       this.notify,
       this.getTotalHeight,
-      this.defaultItemHeight
+      this.defaultItemHeight,
+      this.gap
     );
 
     this.uuid = Math.random().toString(36).substring(2, 10);
@@ -238,13 +239,11 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
     const totalCount = orderedIds.length;
     const totalHeight = this.getTotalHeight();
 
-    if (!this.isInitialized || totalCount === 0) {
-      return {
-        totalHeight: totalCount * this.defaultItemHeight,
-        totalCount,
-      };
-    }
-
+    // getTotalHeight is gap-aware and already falls back to a default-height
+    // estimate before the first build (and returns 0 when empty), so it is
+    // correct in every state — including not-yet-initialized. Using the raw
+    // `count * defaultItemHeight` here instead dropped the gap term and made
+    // the spacer height jump once initialized.
     return {
       totalHeight,
       totalCount,
@@ -280,11 +279,13 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
     // missing (nothing built yet), fall back to scanning from the start.
     let lo = 0;
     let hi = count;
+    let fellBack = false;
     while (lo < hi) {
       const mid = (lo + hi) >> 1;
       const m = this.measurements.getMeasurementById(orderedIds[mid]);
       if (!m) {
         lo = 0;
+        fellBack = true;
         break;
       }
       if (m.top + m.height < viewportTop) {
@@ -299,9 +300,10 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
       if (!measurement) continue;
 
       const itemTop = measurement.top;
-      // Tops are monotonic: everything after this is below the viewport
-      if (itemTop > viewportBottom) break;
-      // Only reachable on the unbuilt fallback path
+      // Tops are monotonic on the built path, so stop once past the viewport.
+      // On the fallback (unbuilt) path layout isn't coherent, so don't break
+      // early — scan the whole list.
+      if (!fellBack && itemTop > viewportBottom) break;
       if (itemTop + measurement.height < viewportTop) continue;
 
       const item = this.dataProvider.getItemById(orderedIds[i]);
@@ -356,11 +358,13 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
 
     let lo = 0;
     let hi = count;
+    let fellBack = false;
     while (lo < hi) {
       const mid = (lo + hi) >> 1;
       const m = this.measurements.getMeasurementById(orderedIds[mid]);
       if (!m) {
         lo = 0;
+        fellBack = true;
         break;
       }
       if (m.top + m.height < top) lo = mid + 1;
@@ -372,8 +376,9 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
       const m = this.measurements.getMeasurementById(orderedIds[i]);
       if (!m) continue;
       // Same strict intersection as `isVisible` in getVisibleItems: an item
-      // whose edge merely touches the window boundary does not count.
-      if (m.top >= bottom) break;
+      // whose edge merely touches the window boundary does not count. Don't
+      // break early on the unbuilt fallback path (layout isn't monotonic).
+      if (!fellBack && m.top >= bottom) break;
       if (m.top + m.height <= top) continue;
       ids.push(orderedIds[i]);
     }

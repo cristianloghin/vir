@@ -79,9 +79,12 @@ export const VirtualizedList = memo(
     }
 
     useEffect(() => {
+      // Disconnect on unmount but keep the instance: a disconnected
+      // ResizeObserver is reusable, and nulling it here would, under a
+      // StrictMode unmount/remount, leave a second observer created on the
+      // next render while mounted items still observe the first.
       return () => {
         itemObserverRef.current?.disconnect();
-        itemObserverRef.current = null;
       };
     }, []);
 
