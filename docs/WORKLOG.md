@@ -211,6 +211,24 @@ Separately, PR #9 lifted the playground video example's `playing` flag into its
 coordinator so it survives an item scrolling off-screen and back — modelling
 that per-item state belongs outside the (unmounted-while-off-screen) item.
 
+### Shared item state — `context` prop + `useVirtualizedListContext`
+
+Consumers were wrapping the list in their own React context to get cross-item
+state (an expanded id, a toggle callback) into items. The list now takes a
+`context` prop and items read it with `useVirtualizedListContext(selector?,
+isEqual?)`. The value is *not* published through React context — that would
+re-render every rendered item on any change. Instead the list owns one
+subscription store per instance, the (never-changing) store is what the React
+context carries, and the hook subscribes via `useSyncExternalStore` with a
+memoized selector, so an expand/collapse re-renders exactly the two items whose
+flag flipped. React context is kept purely as the locator: a module singleton
+breaks with multiple or nested lists, and a store passed as an item prop can't
+reach an item's descendants. A `(props, ctx) => …` item signature was rejected —
+React reserves the second argument, and calling the item as a plain function
+would move its hooks onto the wrapper and defeat per-item memoization. Seven
+tests cover the render-count guarantees, descendants, the empty state, custom
+`isEqual`, and the out-of-list throw — 53 in total.
+
 ---
 
 ## 4. Outstanding work

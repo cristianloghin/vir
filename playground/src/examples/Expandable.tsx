@@ -1,14 +1,8 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   VirtualizedList,
   useDataProvider,
+  useVirtualizedListContext,
   isRealContent,
   type VirtualizedItemComponent,
   type VirtualizedListHandle,
@@ -18,16 +12,21 @@ import { makeRows, normalizeRows, type Row } from "./data";
 const rows = makeRows(200);
 
 // The library has no "maximize" concept. Which item is expanded is the
-// consumer's own state; an expanded item simply renders taller and the
-// ResizeObserver remeasures, so the list re-lays-out automatically.
-const ExpandContext = createContext<{
+// consumer's own state, handed to the list via its `context` prop; an
+// expanded item simply renders taller and the ResizeObserver remeasures, so
+// the list re-lays-out automatically.
+interface ExpandContext {
   expandedId: string | null;
   toggle: (id: string) => void;
-}>({ expandedId: null, toggle: () => {} });
+}
 
 const Item: VirtualizedItemComponent<Row> = ({ id, content }) => {
-  const { expandedId, toggle } = useContext(ExpandContext);
-  const expanded = expandedId === id;
+  // Selectors: a toggle re-renders only the item that collapsed and the one
+  // that expanded, not every rendered item.
+  const expanded = useVirtualizedListContext(
+    (ctx: ExpandContext) => ctx.expandedId === id
+  );
+  const toggle = useVirtualizedListContext((ctx: ExpandContext) => ctx.toggle);
   if (!isRealContent(content)) return null;
   return (
     <div className="card">
@@ -67,7 +66,10 @@ export function Expandable() {
     (id: string) => setExpandedId((prev) => (prev === id ? null : id)),
     []
   );
-  const ctx = useMemo(() => ({ expandedId, toggle }), [expandedId, toggle]);
+  const ctx = useMemo<ExpandContext>(
+    () => ({ expandedId, toggle }),
+    [expandedId, toggle]
+  );
 
   return (
     <>
@@ -79,21 +81,21 @@ export function Expandable() {
           Scroll to top
         </button>
         <span className="stat">
-          Expansion is consumer state — the item just renders taller and the
-          list remeasures. <code>scrollToItem</code> (via <code>apiRef</code>) is
-          the one list-internal action exposed.
+          Expansion is consumer state passed via <code>context</code> and read
+          with <code>useVirtualizedListContext</code>; the item just renders
+          taller and the list remeasures. <code>scrollToItem</code> (via{" "}
+          <code>apiRef</code>) is the one list-internal action exposed.
         </span>
       </div>
       <div className="example-viewport">
-        <ExpandContext.Provider value={ctx}>
-          <VirtualizedList
-            dataProvider={dataProvider}
-            ItemComponent={Item}
-            apiRef={apiRef}
-            style={{ height: "100%" }}
-            config={{ defaultItemHeight: 123 }}
-          />
-        </ExpandContext.Provider>
+        <VirtualizedList
+          dataProvider={dataProvider}
+          ItemComponent={Item}
+          apiRef={apiRef}
+          context={ctx}
+          style={{ height: "100%" }}
+          config={{ defaultItemHeight: 123 }}
+        />
       </div>
     </>
   );

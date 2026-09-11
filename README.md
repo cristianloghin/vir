@@ -8,6 +8,7 @@ A high-performance React virtual list component with measured variable heights, 
 - **Dynamic Heights**: Items measure their own height (ResizeObserver, border-box) — no fixed row height required
 - **Visibility reporting**: `isVisible` per item and an `onVisibleChange` callback to coordinate work (e.g. fetching) outside the items
 - **Imperative API**: `scrollToItem` / `scrollToTop` via an `apiRef`
+- **Shared item state**: pass a `context` to the list and read it in items with `useVirtualizedListContext`, with selectors so only affected items re-render
 - **External scroll container**: virtualize inside a scroller you own, even below other content, via `scrollContainerRef`
 - **TypeScript**: Fully typed with comprehensive interfaces
 - **Smooth Transitions**: Built-in transition management for data changes
@@ -64,20 +65,76 @@ the list grows to fit its content, nothing scrolls, and every item renders.
 The library has no built-in "maximize" concept. Because items measure their own
 height (ResizeObserver), **an expanded item is just one that renders taller** —
 the list remeasures and re-lays-out automatically. Keep "which item is expanded"
-as your own state:
+as your own state and hand it to the items through the list's `context` prop
+(see [Sharing state with items](#sharing-state-with-items)):
 
 ```tsx
+interface ExpandContext {
+  expandedId: string | null;
+  toggle: (id: string) => void;
+}
+
+const Item: VirtualizedItemComponent<Row> = ({ id, content }) => {
+  // With selectors, a toggle re-renders only the two items whose flag changed.
+  const expanded = useVirtualizedListContext((ctx: ExpandContext) => ctx.expandedId === id);
+  const toggle = useVirtualizedListContext((ctx: ExpandContext) => ctx.toggle);
+  return (
+    <div onClick={() => toggle(id)}>
+      {content.title}
+      {expanded && <Details {...content} />}
+    </div>
+  );
+};
+
 function List({ items }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const dataProvider = useDataProvider(items, normalize);
+  const toggle = useCallback(
+    (id: string) => setExpandedId((prev) => (prev === id ? null : id)),
+    []
+  );
+  const context = useMemo(() => ({ expandedId, toggle }), [expandedId, toggle]);
 
-  // The item reads its expanded flag from your state (via context, a store, or
-  // by folding it into `content`) and renders bigger when expanded.
-  return <VirtualizedList dataProvider={dataProvider} ItemComponent={Item} />;
+  return (
+    <VirtualizedList dataProvider={dataProvider} ItemComponent={Item} context={context} />
+  );
 }
 ```
 
 To scroll the expanded item into view, use the imperative API below.
+
+## Sharing state with items
+
+`ItemComponent` receives only the item's own props, so anything shared across
+items — a selection, an expanded id, callbacks into the parent — needs a way in.
+Pass it as the list's `context` prop and read it with `useVirtualizedListContext`
+from the item or any of its descendants (the empty and error state components
+can read it too):
+
+```tsx
+import { useVirtualizedListContext } from '@mikrostack/vir';
+
+// Whole value: re-renders on every change of `context`
+const ctx = useVirtualizedListContext<MyContext>();
+
+// Selector: re-renders only when the selected slice changes (compared with
+// Object.is, or a custom equality as the second argument)
+const selected = useVirtualizedListContext((ctx: MyContext) => ctx.selectedId === id);
+const tags = useVirtualizedListContext((ctx: MyContext) => ctx.tags, shallowEqual);
+```
+
+This is not a plain React context: the list publishes the value through a small
+subscription store, so a change re-renders only the items whose selection
+changed, never the whole rendered window. Two things to keep in mind:
+
+- **Pass a stable `context`.** Build it with `useMemo`; a fresh object literal
+  on every parent render defeats the list's memoization and re-renders every
+  subscribed item each time.
+- **Selectors returning fresh objects need an `isEqual`.** `Object.is` sees a
+  new array or object as a change; pass a shallow compare (and keep the selector
+  itself stable, e.g. defined outside the component) so the reference stays put.
+
+The hook throws when called outside a `VirtualizedList`.
 
 ## Imperative API (scrollToItem)
 
@@ -442,6 +499,7 @@ const MyItem: VirtualizedItemComponent<MyItemData> = ({ id, content, isVisible }
 | `scrollContainerRef?` | `RefObject<HTMLElement \| null>` | Use an existing scrolling element instead of the list's own. The list may sit below other content in it; the ref may fill in after mount. See [Using an external scroll container](#using-an-external-scroll-container) |
 | `scrollButtonPortalRef?` | `RefObject<HTMLElement \| null>` | Element to portal the scroll-to-top button into. Needed with an external scroll container, where the list's wrapper scrolls away with the content |
 | `apiRef?` | `Ref<VirtualizedListHandle>` | Imperative handle exposing `scrollToItem(id)` and `scrollToTop()`. See [Imperative API](#imperative-api-scrolltoitem) |
+| `context?` | `TContext` | Value made available to items via `useVirtualizedListContext()`. Memoize it. See [Sharing state with items](#sharing-state-with-items) |
 
 ### VirtualizedListConfig
 
