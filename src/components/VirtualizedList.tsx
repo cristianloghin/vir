@@ -6,6 +6,7 @@ import {
   RefObject,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
 } from "react";
@@ -18,8 +19,17 @@ import {
   DataProviderInterface,
 } from "../types";
 import { useVirtualizedList } from "../hooks/useVirtualizedList";
+import {
+  ContextStore,
+  VirtualizedListContext,
+  createContextStore,
+} from "../hooks/useVirtualizedListContext";
 
-interface VirtualizedListProps<TData = unknown, TTransformed = TData> {
+interface VirtualizedListProps<
+  TData = unknown,
+  TTransformed = TData,
+  TContext = unknown,
+> {
   dataProvider: DataProviderInterface<TData, TTransformed>;
   ItemComponent: VirtualizedItemComponent<TTransformed>;
   ScrollTopComponent?: React.FC<{ scrollTop: () => void }>;
@@ -28,14 +38,20 @@ interface VirtualizedListProps<TData = unknown, TTransformed = TData> {
   className?: string;
   style?: React.CSSProperties;
   config?: VirtualizedListConfig;
-  scrollContainerRef?: RefObject<HTMLElement>;
-  scrollButtonPortalRef?: RefObject<HTMLElement>;
+  // `| null` so a React 19 `useRef<HTMLDivElement>(null)` is accepted as-is.
+  scrollContainerRef?: RefObject<HTMLElement | null>;
+  scrollButtonPortalRef?: RefObject<HTMLElement | null>;
   /** Imperative handle for list-internal actions (scrollToItem, scrollToTop). */
   apiRef?: Ref<VirtualizedListHandle>;
+  /** Arbitrary value made available to every item (and to the empty/error
+   * state components) through `useVirtualizedListContext()`. Pass a stable
+   * reference (`useMemo`) — a fresh object per render re-renders the list and
+   * every subscribed item each time. */
+  context?: TContext;
 }
 
 export const VirtualizedList = memo(
-  <TData, TTransformed = TData>({
+  <TData, TTransformed = TData, TContext = unknown>({
     dataProvider,
     ItemComponent,
     ScrollTopComponent,
@@ -47,15 +63,38 @@ export const VirtualizedList = memo(
     scrollButtonPortalRef,
     config,
     apiRef,
-  }: VirtualizedListProps<TData, TTransformed>) => {
-    const { containerRef, measureItem, scrollToItem, scrollToTop, state } =
-      useVirtualizedList(dataProvider, config, scrollContainerRef);
+    context,
+  }: VirtualizedListProps<TData, TTransformed, TContext>) => {
+    const {
+      containerRef,
+      listRef,
+      measureItem,
+      scrollToItem,
+      scrollToTop,
+      state,
+    } = useVirtualizedList(dataProvider, config, scrollContainerRef);
 
     useImperativeHandle(
       apiRef,
       () => ({ scrollToItem, scrollToTop }),
       [scrollToItem, scrollToTop]
     );
+
+    // One store per list instance, so the provider's value never changes and
+    // React context itself never re-renders consumers; items subscribe to the
+    // store through useVirtualizedListContext instead. Published in a layout
+    // effect so subscribers (re-rendered synchronously by
+    // useSyncExternalStore) see the new value before paint.
+    const contextStoreRef = useRef<ContextStore<TContext | undefined> | null>(
+      null
+    );
+    if (!contextStoreRef.current) {
+      contextStoreRef.current = createContextStore(context);
+    }
+    const contextStore = contextStoreRef.current;
+    useLayoutEffect(() => {
+      contextStore.set(context);
+    }, [contextStore, context]);
 
     const itemObserverRef = useRef<ResizeObserver | null>(null);
 
@@ -121,18 +160,22 @@ export const VirtualizedList = memo(
     if (state.error && state.viewportInfo.totalCount === 0) {
       const ErrorComponent = ErrorStateComponent || DefaultErrorComponent;
       return (
-        <div className={className} style={emptyStateStyle}>
-          <ErrorComponent error={state.error} />
-        </div>
+        <VirtualizedListContext.Provider value={contextStore}>
+          <div className={className} style={emptyStateStyle}>
+            <ErrorComponent error={state.error} />
+          </div>
+        </VirtualizedListContext.Provider>
       );
     }
 
     // Show empty state when there are no items and no error
     if (state.viewportInfo.totalCount === 0) {
       return (
-        <div className={className} style={emptyStateStyle}>
-          {EmptyStateComponent || defaultNoDataComponent}
-        </div>
+        <VirtualizedListContext.Provider value={contextStore}>
+          <div className={className} style={emptyStateStyle}>
+            {EmptyStateComponent || defaultNoDataComponent}
+          </div>
+        </VirtualizedListContext.Provider>
       );
     }
 
@@ -164,7 +207,7 @@ export const VirtualizedList = memo(
     };
 
     const innerContent = (
-      <div style={innerStyle}>
+      <div ref={listRef} style={innerStyle}>
         {state.visibleItems.map((item) => (
           <VirtualizedItem
             key={item.id}
@@ -200,27 +243,29 @@ export const VirtualizedList = memo(
 
     if (scrollContainerRef) {
       return (
-        <>
+        <VirtualizedListContext.Provider value={contextStore}>
           <div className={className} style={outerStyle}>
             {innerContent}
           </div>
           {renderScrollButton()}
-        </>
+        </VirtualizedListContext.Provider>
       );
     }
 
     return (
-      <div className={className} style={outerStyle}>
-        {/* Scrolling is handled by the listener ScrollContainer.init attaches
-            (rAF-throttled); a React onScroll here would process every event
-            twice */}
-        <div ref={containerRef} style={containerStyle}>
-          {innerContent}
+      <VirtualizedListContext.Provider value={contextStore}>
+        <div className={className} style={outerStyle}>
+          {/* Scrolling is handled by the listener ScrollContainer.init attaches
+              (rAF-throttled); a React onScroll here would process every event
+              twice */}
+          <div ref={containerRef} style={containerStyle}>
+            {innerContent}
+          </div>
+          {renderScrollButton()}
         </div>
-        {renderScrollButton()}
-      </div>
+      </VirtualizedListContext.Provider>
     );
   }
-) as <TData, TTransformed = TData>(
-  props: VirtualizedListProps<TData, TTransformed>
+) as <TData, TTransformed = TData, TContext = unknown>(
+  props: VirtualizedListProps<TData, TTransformed, TContext>
 ) => JSX.Element;

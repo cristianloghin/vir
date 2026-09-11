@@ -5,6 +5,7 @@ import { VariableHeight } from "./VariableHeight";
 import { Expandable } from "./Expandable";
 import { LoadingErrorAsync } from "./LoadingErrorAsync";
 import { VisibilityVideo } from "./VisibilityVideo";
+import { ExternalScroller } from "./ExternalScroller";
 
 export interface Example {
   id: string;
@@ -54,5 +55,12 @@ export const examples: Example[] = [
     description:
       "Data fetching coordinated OUTSIDE the items via onVisibleChange, cached by id so re-entry never re-fetches. Items use isVisible to pause an off-screen player.",
     Component: VisibilityVideo,
+  },
+  {
+    id: "external",
+    title: "External scroll container",
+    description:
+      "The panel scrolls, not the list, and 300px of other content sits above it. The list measures its own offset, so windowing, scrollToTop and the portalled scroll button all work in list coordinates.",
+    Component: ExternalScroller,
   },
 ];

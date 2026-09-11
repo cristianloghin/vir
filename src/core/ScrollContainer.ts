@@ -4,6 +4,13 @@ export class ScrollContainer {
   private scrollContainerElement: HTMLElement | null = null;
   private containerHeight = 0;
 
+  // The list's own content element and its distance from the top of the
+  // scroll container's content. The list may sit below other content in an
+  // external container (a page header, say), so container scrollTop and
+  // list coordinates differ by this much. Zero for the internal container.
+  private listElement: HTMLElement | null = null;
+  private listOffset = 0;
+
   private showScrollToTop = false;
   private scrollTop = 0;
   private lastKnownScrollTop = 0;
@@ -31,13 +38,18 @@ export class ScrollContainer {
 
     if (element) {
       this.containerHeight = element.clientHeight;
+      this.measureListOffset();
 
       // Set up scroll event listener for external container
       const handleExternalScroll = () => {
         requestAnimationFrame(() => {
           if (!this.scrollContainerElement) return;
-          const scrollTop = this.scrollContainerElement.scrollTop;
-          this.handleScroll(scrollTop);
+          // Content above the list can change height without a container
+          // resize (a header condensing on scroll), so re-measure per frame.
+          // Rects are cheap here: scrolling does not dirty layout. A changed
+          // offset must apply even when scrollTop itself did not move.
+          const offsetChanged = this.measureListOffset();
+          this.syncScroll(this.scrollContainerElement.scrollTop, offsetChanged);
         });
       };
 
@@ -57,6 +69,7 @@ export class ScrollContainer {
             this.scrollTopRatio = ratio;
 
             this.containerHeight = newHeight;
+            if (this.measureListOffset()) this.applyScrollTop();
 
             requestAnimationFrame(() => {
               const targetElement = this.scrollContainerElement;
@@ -98,16 +111,22 @@ export class ScrollContainer {
     }
   };
 
-  handleScroll = (scrollTop: number) => {
-    if (Math.abs(scrollTop - this.lastKnownScrollTop) < 1) return;
+  // Takes the container's raw scrollTop; everything downstream works in list
+  // coordinates, so the list offset is subtracted here.
+  handleScroll = (scrollTop: number) => this.syncScroll(scrollTop);
 
-    this.scrollTop = scrollTop;
-    this.lastKnownScrollTop = scrollTop;
-    this.showScrollToTop = scrollTop > 200;
-
-    this.updateScrollTopRatio();
-    this.notify();
+  /**
+   * The element holding the list's items. Once set, its position inside the
+   * scroll container is measured so the list can sit below other content.
+   * Optional: without it the list is assumed to start at the container's top.
+   */
+  setListElement = (element: HTMLElement | null) => {
+    if (element === this.listElement) return;
+    this.listElement = element;
+    if (this.measureListOffset()) this.syncScroll(this.lastKnownScrollTop, true);
   };
+
+  getListOffset = () => this.listOffset;
 
   scrollToTop = () => this.scrollToPosition(0);
 
@@ -154,6 +173,47 @@ export class ScrollContainer {
   getScrollTop = () => this.scrollTop;
   getShowScroll = () => this.showScrollToTop;
 
+  private syncScroll = (scrollTop: number, force = false) => {
+    if (!force && Math.abs(scrollTop - this.lastKnownScrollTop) < 1) return;
+
+    this.lastKnownScrollTop = scrollTop;
+    this.applyScrollTop();
+    this.notify();
+  };
+
+  // Re-derive the list-space scrollTop from the last raw value and offset.
+  private applyScrollTop = () => {
+    this.scrollTop = this.lastKnownScrollTop - this.listOffset;
+    this.showScrollToTop = this.scrollTop > 200;
+    this.updateScrollTopRatio();
+  };
+
+  // Distance from the top of the container's scrollable content to the top
+  // of the list element. Measured from bounding rects plus the current
+  // scrollTop, which is invariant while scrolling. Returns whether it changed.
+  private measureListOffset = (): boolean => {
+    const container = this.scrollContainerElement;
+    const list = this.listElement;
+    let offset = 0;
+    if (container && list) {
+      const containerRect = container.getBoundingClientRect();
+      // An empty rect means no layout is available (detached node, or a
+      // non-rendering environment such as jsdom); keep the offset at zero
+      // rather than deriving one from scrollTop alone.
+      if (containerRect.width !== 0 || containerRect.height !== 0) {
+        const listRect = list.getBoundingClientRect();
+        offset =
+          listRect.top -
+          containerRect.top -
+          container.clientTop +
+          container.scrollTop;
+      }
+    }
+    if (offset === this.listOffset) return false;
+    this.listOffset = offset;
+    return true;
+  };
+
   private updateScrollTopRatio = () => {
     const totalHeight = this.getTotalHeight();
     if (totalHeight > this.containerHeight) {
@@ -162,10 +222,11 @@ export class ScrollContainer {
     }
   };
 
+  // `top` is in list coordinates; the container scrolls by the offset more.
   private scrollToPosition = (top: number, smooth = true) => {
     if (this.scrollContainerElement) {
       this.scrollContainerElement.scrollTo({
-        top,
+        top: top + this.listOffset,
         behavior: smooth ? "smooth" : "auto",
       });
     }
@@ -183,5 +244,6 @@ export class ScrollContainer {
     }
 
     this.scrollContainerElement = null;
+    this.listOffset = 0;
   };
 }

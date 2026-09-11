@@ -211,12 +211,47 @@ Separately, PR #9 lifted the playground video example's `playing` flag into its
 coordinator so it survives an item scrolling off-screen and back — modelling
 that per-item state belongs outside the (unmounted-while-off-screen) item.
 
+### Shared item state — `context` prop + `useVirtualizedListContext`
+
+Consumers were wrapping the list in their own React context to get cross-item
+state (an expanded id, a toggle callback) into items. The list now takes a
+`context` prop and items read it with `useVirtualizedListContext(selector?,
+isEqual?)`. The value is *not* published through React context — that would
+re-render every rendered item on any change. Instead the list owns one
+subscription store per instance, the (never-changing) store is what the React
+context carries, and the hook subscribes via `useSyncExternalStore` with a
+memoized selector, so an expand/collapse re-renders exactly the two items whose
+flag flipped. React context is kept purely as the locator: a module singleton
+breaks with multiple or nested lists, and a store passed as an item prop can't
+reach an item's descendants. A `(props, ctx) => …` item signature was rejected —
+React reserves the second argument, and calling the item as a plain function
+would move its hooks onto the wrapper and defeat per-item memoization. Seven
+tests cover the render-count guarantees, descendants, the empty state, custom
+`isEqual`, and the out-of-list throw — 53 in total.
+
 ---
 
 ## 4. Outstanding work
 
 None of the below is required for correctness; they are further performance
 improvements, roughly in descending order of value.
+
+### Scroll stability
+
+- **Guard scroll position against transient item shrink.** Found in the wild
+  (vms-frontend forensic search, 2026-07-22): an expanded item containing a
+  `<video>` whose box was sized by the video's intrinsic dimensions collapsed
+  by ~330px for a few frames during a `src` swap (metadata gone until
+  `loadedmetadata`). The shrink flowed through `measureItem` →
+  `buildMeasurements` into the spacer height; total height dropped below the
+  container height, the browser clamped `scrollTop` to 0, and when the item
+  grew back the list stayed jumped to the top. The app-side fix was to make
+  the item's geometry load-independent (`width: 100%` + `aspect-ratio`), but
+  the library could defend against the whole class of transiently-collapsing
+  consumer content: e.g. debounce shrink-side measurements by a frame or two
+  before committing them to the spacer (growth stays immediate), or pin
+  `scrollTop` across a spacer shrink that would otherwise clamp it. Growth
+  never causes the jump — only shrink needs the guard.
 
 ### Rendering / measurement
 
