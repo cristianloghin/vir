@@ -12,7 +12,7 @@ import { DataProviderInterface, VirtualizedListConfig } from "../types";
 export function useVirtualizedList<TData = unknown, TTransformed = TData>(
   dataProvider: DataProviderInterface<TData, TTransformed>,
   config?: VirtualizedListConfig,
-  scrollContainerRef?: RefObject<HTMLElement>
+  scrollContainerRef?: RefObject<HTMLElement | null>
 ) {
   const managerRef = useRef<VirtualizedListManager<TData, TTransformed>>(null);
 
@@ -29,6 +29,17 @@ export function useVirtualizedList<TData = unknown, TTransformed = TData>(
       if (element && !scrollContainerRef) {
         manager.setScrollContainer(element);
       }
+    },
+    [manager]
+  );
+
+  // The element that holds the items. Lets the list sit below other content
+  // in an external scroll container: its offset from the container's top is
+  // measured and subtracted from scrollTop. Optional for hook consumers —
+  // without it the list is assumed to start at the container's top.
+  const listRef = useCallback(
+    (element: HTMLElement | null) => {
+      manager.setListElement(element);
     },
     [manager]
   );
@@ -88,6 +99,7 @@ export function useVirtualizedList<TData = unknown, TTransformed = TData>(
 
   return {
     containerRef,
+    listRef,
     handleScroll,
     measureItem,
     scrollToItem,

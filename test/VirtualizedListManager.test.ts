@@ -65,6 +65,42 @@ const createManager = (count = 100) => {
   return { manager, element, notifyData };
 };
 
+// Gives an element a layout: jsdom reports empty rects, which the list treats
+// as "no layout information". `top` is where the element sits on screen at
+// scrollTop 0; the rect follows the container's scroll like a real node would.
+const layout = (
+  element: HTMLElement,
+  top: number,
+  height: number,
+  scroller?: HTMLElement
+) => {
+  element.getBoundingClientRect = () => {
+    const y = top - (scroller?.scrollTop ?? 0);
+    return {
+      top: y,
+      bottom: y + height,
+      left: 0,
+      right: 800,
+      width: 800,
+      height,
+      x: 0,
+      y,
+      toJSON: () => ({}),
+    } as DOMRect;
+  };
+};
+
+// A container whose content starts with 300px of other content, then the list.
+const createOffsetManager = () => {
+  const created = createManager();
+  const { element } = created;
+  layout(element, 0, 400);
+  const list = document.createElement("div");
+  layout(list, 300, 10_000, element);
+  created.manager.setListElement(list);
+  return { ...created, list };
+};
+
 describe("VirtualizedListManager", () => {
   it("windows the visible items around the viewport", () => {
     const { manager } = createManager();
@@ -119,6 +155,66 @@ describe("VirtualizedListManager", () => {
     manager.scrollToItem("item-1"); // top 100, already within [0, 400]
 
     expect(element.scrollTop).toBe(0);
+  });
+
+  describe("list below other content in the scroll container", () => {
+    it("windows items in list coordinates, not container coordinates", () => {
+      const { manager: plain, element: plainEl } = createManager();
+      plainEl.scrollTop = 5000;
+      plain.handleScroll(5000);
+      const expected = plain.getSnapshot().visibleItems.map((i) => i.id);
+
+      const { manager, element } = createOffsetManager();
+      element.scrollTop = 5300;
+      manager.handleScroll(5300);
+      expect(manager.getSnapshot().visibleItems.map((i) => i.id)).toEqual(
+        expected
+      );
+    });
+
+    it("does not count the offset as scrolled-past content", () => {
+      const { manager, element } = createOffsetManager();
+      element.scrollTop = 250; // list top is still 50px below the viewport top
+      manager.handleScroll(250);
+      expect(manager.getSnapshot().showScrollToTop).toBe(false);
+      expect(manager.getSnapshot().visibleItems[0].id).toBe("item-0");
+    });
+
+    it("scrolls the container by the offset more for scrollToItem", () => {
+      const { manager, element } = createOffsetManager();
+      manager.scrollToItem("item-50");
+      expect(element.scrollTop).toBe(4700 + 300);
+    });
+
+    it("re-measures the offset on scroll frames when content above resizes", async () => {
+      const { manager, element, list } = createOffsetManager();
+      element.scrollTop = 450;
+      element.dispatchEvent(new Event("scroll"));
+      await flush();
+      // 450 - 300 = 150: not yet past the 200px scroll-to-top threshold
+      expect(manager.getSnapshot().showScrollToTop).toBe(false);
+
+      // The content above condenses from 300px to 100px; scrollTop is unchanged
+      layout(list, 100, 10_000, element);
+      element.dispatchEvent(new Event("scroll"));
+      await flush();
+      expect(manager.getSnapshot().showScrollToTop).toBe(true);
+    });
+
+    it("keeps a zero offset without layout information", () => {
+      const { manager: plain, element: plainEl } = createManager();
+      plainEl.scrollTop = 5000;
+      plain.handleScroll(5000);
+      const expected = plain.getSnapshot().visibleItems.map((i) => i.id);
+
+      const { manager, element } = createManager();
+      manager.setListElement(document.createElement("div")); // empty jsdom rects
+      element.scrollTop = 5000;
+      manager.handleScroll(5000);
+      expect(manager.getSnapshot().visibleItems.map((i) => i.id)).toEqual(
+        expected
+      );
+    });
   });
 
   it("returns the same snapshot reference until something changes", () => {

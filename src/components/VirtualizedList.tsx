@@ -28,8 +28,9 @@ interface VirtualizedListProps<TData = unknown, TTransformed = TData> {
   className?: string;
   style?: React.CSSProperties;
   config?: VirtualizedListConfig;
-  scrollContainerRef?: RefObject<HTMLElement>;
-  scrollButtonPortalRef?: RefObject<HTMLElement>;
+  // `| null` so a React 19 `useRef<HTMLDivElement>(null)` is accepted as-is.
+  scrollContainerRef?: RefObject<HTMLElement | null>;
+  scrollButtonPortalRef?: RefObject<HTMLElement | null>;
   /** Imperative handle for list-internal actions (scrollToItem, scrollToTop). */
   apiRef?: Ref<VirtualizedListHandle>;
 }
@@ -48,8 +49,14 @@ export const VirtualizedList = memo(
     config,
     apiRef,
   }: VirtualizedListProps<TData, TTransformed>) => {
-    const { containerRef, measureItem, scrollToItem, scrollToTop, state } =
-      useVirtualizedList(dataProvider, config, scrollContainerRef);
+    const {
+      containerRef,
+      listRef,
+      measureItem,
+      scrollToItem,
+      scrollToTop,
+      state,
+    } = useVirtualizedList(dataProvider, config, scrollContainerRef);
 
     useImperativeHandle(
       apiRef,
@@ -164,7 +171,7 @@ export const VirtualizedList = memo(
     };
 
     const innerContent = (
-      <div style={innerStyle}>
+      <div ref={listRef} style={innerStyle}>
         {state.visibleItems.map((item) => (
           <VirtualizedItem
             key={item.id}

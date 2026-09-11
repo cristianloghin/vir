@@ -218,6 +218,23 @@ that per-item state belongs outside the (unmounted-while-off-screen) item.
 None of the below is required for correctness; they are further performance
 improvements, roughly in descending order of value.
 
+### Scroll stability
+
+- **Guard scroll position against transient item shrink.** Found in the wild
+  (vms-frontend forensic search, 2026-07-22): an expanded item containing a
+  `<video>` whose box was sized by the video's intrinsic dimensions collapsed
+  by ~330px for a few frames during a `src` swap (metadata gone until
+  `loadedmetadata`). The shrink flowed through `measureItem` →
+  `buildMeasurements` into the spacer height; total height dropped below the
+  container height, the browser clamped `scrollTop` to 0, and when the item
+  grew back the list stayed jumped to the top. The app-side fix was to make
+  the item's geometry load-independent (`width: 100%` + `aspect-ratio`), but
+  the library could defend against the whole class of transiently-collapsing
+  consumer content: e.g. debounce shrink-side measurements by a frame or two
+  before committing them to the spacer (growth stays immediate), or pin
+  `scrollTop` across a spacer shrink that would otherwise clamp it. Growth
+  never causes the jump — only shrink needs the guard.
+
 ### Rendering / measurement
 
 - **DOM node recycling.** Items are unmounted/remounted as they scroll in and

@@ -109,6 +109,10 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
     this.scrollContainer.handleScroll(scrollTop);
   };
 
+  setListElement = (element: HTMLElement | null) => {
+    this.scrollContainer.setListElement(element);
+  };
+
   scrollToTop = () => {
     this.scrollContainer.scrollToTop();
   };
