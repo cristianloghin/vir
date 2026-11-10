@@ -1,4 +1,4 @@
-import { ItemMeasurement } from "../types";
+import { ItemMeasurement, ListScrollOptions } from "../types";
 
 export class ScrollContainer {
   private scrollContainerElement: HTMLElement | null = null;
@@ -24,7 +24,8 @@ export class ScrollContainer {
     private notify: () => void,
     private getTotalHeight: () => number,
     private defaultItemHeight: number,
-    private gap: number
+    private gap: number,
+    private scrollbar: "stable" | "auto" = "stable"
   ) {}
 
   init = (element: HTMLElement) => {
@@ -96,9 +97,12 @@ export class ScrollContainer {
       // Set properties individually: assigning a string to `style` replaces
       // the element's entire cssText, wiping inline styles applied by React
       // (e.g. `height: 100%`) or by the consumer on an external container.
+      // "stable" keeps the scrollbar's space reserved so items never change
+      // width when the list outgrows the container; "auto" shows a scrollbar
+      // only while there is something to scroll.
       const style = this.scrollContainerElement.style;
-      style.overflow = "scroll";
-      style.scrollbarGutter = "stable";
+      style.overflow = this.scrollbar === "auto" ? "auto" : "scroll";
+      style.scrollbarGutter = this.scrollbar === "auto" ? "auto" : "stable";
       style.overscrollBehavior = "contain";
 
       this.resizeObserver.observe(this.scrollContainerElement);
@@ -128,9 +132,14 @@ export class ScrollContainer {
 
   getListOffset = () => this.listOffset;
 
-  scrollToTop = () => this.scrollToPosition(0);
+  scrollToTop = (options?: ListScrollOptions) =>
+    this.scrollToPosition(0, toScrollBehavior(options));
 
-  scrollToItemById = (itemId: string, measurement?: ItemMeasurement) => {
+  scrollToItemById = (
+    itemId: string,
+    measurement?: ItemMeasurement,
+    options?: ListScrollOptions
+  ) => {
     if (!this.scrollContainerElement) return;
 
     if (!measurement) {
@@ -140,9 +149,10 @@ export class ScrollContainer {
       if (itemIndex !== -1) {
         // Estimate the offset with the gap included, matching how
         // buildMeasurements lays unmeasured items out.
+        // An estimated target is not worth animating to: jump.
         this.scrollToPosition(
           itemIndex * (this.defaultItemHeight + this.gap),
-          false
+          "auto"
         );
       }
       return;
@@ -166,7 +176,7 @@ export class ScrollContainer {
     const maxScrollTop = Math.max(0, totalHeight - this.containerHeight);
     targetScrollTop = Math.max(0, Math.min(targetScrollTop, maxScrollTop));
 
-    this.scrollToPosition(targetScrollTop);
+    this.scrollToPosition(targetScrollTop, toScrollBehavior(options));
   };
 
   getContainerHeight = () => this.containerHeight;
@@ -223,11 +233,11 @@ export class ScrollContainer {
   };
 
   // `top` is in list coordinates; the container scrolls by the offset more.
-  private scrollToPosition = (top: number, smooth = true) => {
+  private scrollToPosition = (top: number, behavior: ScrollBehavior) => {
     if (this.scrollContainerElement) {
       this.scrollContainerElement.scrollTo({
         top: top + this.listOffset,
-        behavior: smooth ? "smooth" : "auto",
+        behavior,
       });
     }
   };
@@ -247,3 +257,9 @@ export class ScrollContainer {
     this.listOffset = 0;
   };
 }
+
+// Smooth unless asked otherwise. "instant" rather than "auto" for the jump:
+// "auto" defers to the container's CSS `scroll-behavior`, which a consumer may
+// have set to smooth.
+const toScrollBehavior = (options?: ListScrollOptions): ScrollBehavior =>
+  options?.behavior === "instant" ? "instant" : "smooth";

@@ -148,6 +148,29 @@ describe("VirtualizedListManager", () => {
     expect(element.scrollTop).toBe(4700);
   });
 
+  it("animates scrollToItem and scrollToTop unless asked to jump", () => {
+    const { manager, element } = createManager();
+    const scrollTo = vi.spyOn(element, "scrollTo");
+
+    manager.scrollToItem("item-50");
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 4700, behavior: "smooth" });
+
+    // "instant", not "auto": "auto" would defer to a CSS scroll-behavior the
+    // consumer may have set to smooth.
+    manager.scrollToItem("item-80", { behavior: "instant" });
+    expect(scrollTo).toHaveBeenLastCalledWith({
+      top: 7700,
+      behavior: "instant",
+    });
+
+    manager.scrollToTop();
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: "smooth" });
+
+    manager.scrollToItem("item-50", { behavior: "instant" });
+    manager.scrollToTop({ behavior: "instant" });
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: "instant" });
+  });
+
   it("leaves the scroll position alone when the item is already visible", () => {
     const { manager, element } = createManager();
     element.scrollTop = 0;
@@ -343,6 +366,25 @@ describe("VirtualizedListManager", () => {
 
     expect(element.style.height).toBe("100%");
     expect(element.style.overflow).toBe("scroll");
+  });
+
+  it("reserves the scrollbar's space by default", () => {
+    const { element } = createManager();
+
+    expect(element.style.overflow).toBe("scroll");
+    expect(element.style.scrollbarGutter).toBe("stable");
+  });
+
+  it("shows a scrollbar only on overflow with scrollbar: 'auto'", () => {
+    const { provider, notifyData } = createFakeProvider(10);
+    const manager = new VirtualizedListManager(provider, { scrollbar: "auto" });
+    notifyData();
+
+    const element = createScrollElement();
+    manager.setScrollContainer(element);
+
+    expect(element.style.overflow).toBe("auto");
+    expect(element.style.scrollbarGutter).toBe("auto");
   });
 
   it("survives an initialize/dispose/initialize cycle", async () => {

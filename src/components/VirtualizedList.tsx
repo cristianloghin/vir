@@ -4,6 +4,7 @@ import {
   ReactNode,
   Ref,
   RefObject,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
@@ -33,6 +34,10 @@ interface VirtualizedListProps<
   dataProvider: DataProviderInterface<TData, TTransformed>;
   ItemComponent: VirtualizedItemComponent<TTransformed>;
   ScrollTopComponent?: React.FC<{ scrollTop: () => void }>;
+  /** Whether the scroll-to-top button (the default one or
+   * `ScrollTopComponent`) appears once the list is scrolled down. Defaults to
+   * true; turn it off for compact lists such as menus and pickers. */
+  showScrollButton?: boolean;
   EmptyStateComponent?: ReactNode;
   ErrorStateComponent?: React.FC<{ error: Error }>;
   className?: string;
@@ -55,6 +60,7 @@ export const VirtualizedList = memo(
     dataProvider,
     ItemComponent,
     ScrollTopComponent,
+    showScrollButton = true,
     EmptyStateComponent,
     ErrorStateComponent,
     className = "",
@@ -79,6 +85,10 @@ export const VirtualizedList = memo(
       () => ({ scrollToItem, scrollToTop }),
       [scrollToItem, scrollToTop]
     );
+
+    // What the button gets: no arguments, so wiring it straight to `onClick`
+    // can't pass the click event along as scroll options.
+    const handleScrollTop = useCallback(() => scrollToTop(), [scrollToTop]);
 
     // One store per list instance, so the provider's value never changes and
     // React context itself never re-renders consumers; items subscribe to the
@@ -179,10 +189,17 @@ export const VirtualizedList = memo(
       );
     }
 
+    // Mirrors what ScrollContainer.init sets on the element, so React's
+    // inline style and the manager's never disagree.
+    const autoScrollbar = config?.scrollbar === "auto";
     const containerStyle: React.CSSProperties = {
       height: "100%",
-      overflow: scrollContainerRef ? "visible" : "scroll",
-      scrollbarGutter: scrollContainerRef ? "auto" : "stable",
+      overflow: scrollContainerRef
+        ? "visible"
+        : autoScrollbar
+          ? "auto"
+          : "scroll",
+      scrollbarGutter: scrollContainerRef || autoScrollbar ? "auto" : "stable",
     };
 
     const innerStyle: React.CSSProperties = {
@@ -219,19 +236,20 @@ export const VirtualizedList = memo(
       </div>
     );
 
-    const scrollButton = state.showScrollToTop ? (
-      ScrollTopComponent ? (
-        <ScrollTopComponent scrollTop={scrollToTop} />
-      ) : (
-        <button
-          onClick={scrollToTop}
-          aria-label="Scroll to top"
-          style={scrollToTopButtonStyle}
-        >
-          ↑
-        </button>
-      )
-    ) : null;
+    const scrollButton =
+      showScrollButton && state.showScrollToTop ? (
+        ScrollTopComponent ? (
+          <ScrollTopComponent scrollTop={handleScrollTop} />
+        ) : (
+          <button
+            onClick={handleScrollTop}
+            aria-label="Scroll to top"
+            style={scrollToTopButtonStyle}
+          >
+            ↑
+          </button>
+        )
+      ) : null;
 
     const renderScrollButton = () => {
       if (!scrollButton) return null;

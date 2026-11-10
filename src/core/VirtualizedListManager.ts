@@ -5,6 +5,7 @@ import {
   VirtualizedListConfig,
   VisibilityChange,
   VirtualizedListInterface,
+  ListScrollOptions,
   ListState,
 } from "../types";
 import { Measurements } from "./Measurements";
@@ -75,7 +76,8 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
       this.notify,
       this.getTotalHeight,
       this.defaultItemHeight,
-      this.gap
+      this.gap,
+      config.scrollbar
     );
 
     this.uuid = Math.random().toString(36).substring(2, 10);
@@ -88,8 +90,8 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
     this.measurements.measureItem(id, height);
   };
 
-  scrollToItem = (id: string) => {
-    this.scrollToItemById(id);
+  scrollToItem = (id: string, options?: ListScrollOptions) => {
+    this.scrollToItemById(id, options);
   };
 
   // The hook re-syncs this every render so an inline consumer callback never
@@ -113,8 +115,8 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
     this.scrollContainer.setListElement(element);
   };
 
-  scrollToTop = () => {
-    this.scrollContainer.scrollToTop();
+  scrollToTop = (options?: ListScrollOptions) => {
+    this.scrollContainer.scrollToTop(options);
   };
 
   initialize = (abortSignal: AbortSignal) => {
@@ -215,9 +217,9 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
     });
   };
 
-  private scrollToItemById = (itemId: string) => {
+  private scrollToItemById = (itemId: string, options?: ListScrollOptions) => {
     const measurement = this.measurements.getMeasurementById(itemId);
-    this.scrollContainer.scrollToItemById(itemId, measurement);
+    this.scrollContainer.scrollToItemById(itemId, measurement, options);
   };
 
   private notify = () => {
