@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { VirtualizedList, useDataProvider } from "../src";
 import {
   ListItem,
@@ -29,12 +35,16 @@ function List({
   error = null,
   config,
   ItemComponent = Item,
+  showScrollButton,
+  ScrollTopComponent,
 }: {
   rows: Row[] | undefined;
   isLoading?: boolean;
   error?: Error | null;
   config?: VirtualizedListConfig;
   ItemComponent?: typeof Item;
+  showScrollButton?: boolean;
+  ScrollTopComponent?: React.FC<{ scrollTop: () => void }>;
 }) {
   const dataProvider = useDataProvider(
     rows,
@@ -49,6 +59,8 @@ function List({
       dataProvider={dataProvider}
       ItemComponent={ItemComponent}
       config={config}
+      showScrollButton={showScrollButton}
+      ScrollTopComponent={ScrollTopComponent}
     />
   );
 }
@@ -57,6 +69,21 @@ function List({
 // microtask-batched store notifications behind them
 const flushUpdates = () =>
   act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+
+// The list's own scroll container: the parent of the element that holds the
+// items.
+const scrollerOf = (container: HTMLElement) =>
+  container.querySelector<HTMLElement>("[data-id]")!.parentElement!
+    .parentElement!;
+
+// Scrolls past the 200px mark where the scroll-to-top button appears. Tests
+// that look for the button query within their own container: renders are not
+// cleaned up between tests here, so `screen` would find an earlier list's.
+const scrollDown = async (scroller: HTMLElement) => {
+  scroller.scrollTop = 500;
+  fireEvent.scroll(scroller);
+  await flushUpdates();
+};
 
 describe("VirtualizedList", () => {
   it("renders only the items near the viewport", async () => {
@@ -165,5 +192,65 @@ describe("VirtualizedList", () => {
 
     expect(screen.getByText("Error loading data")).toBeDefined();
     expect(screen.getByText("boom")).toBeDefined();
+  });
+  it("shows the scroll-to-top button once scrolled down", async () => {
+    const { container } = render(<List rows={makeRows(100)} />);
+    await flushUpdates();
+    expect(within(container).queryByLabelText("Scroll to top")).toBeNull();
+
+    await scrollDown(scrollerOf(container));
+
+    expect(within(container).getByLabelText("Scroll to top")).toBeDefined();
+  });
+
+  it("never shows the scroll-to-top button with showScrollButton={false}", async () => {
+    const Custom = () => <button>custom top</button>;
+    const { container } = render(
+      <List
+        rows={makeRows(100)}
+        showScrollButton={false}
+        ScrollTopComponent={Custom}
+      />
+    );
+    await flushUpdates();
+
+    await scrollDown(scrollerOf(container));
+
+    expect(within(container).queryByLabelText("Scroll to top")).toBeNull();
+    expect(within(container).queryByText("custom top")).toBeNull();
+  });
+
+  it("does not pass the click event to scrollTop as scroll options", async () => {
+    // The usual wiring: the handler goes straight onto onClick.
+    const Custom = ({ scrollTop }: { scrollTop: () => void }) => (
+      <button onClick={scrollTop}>custom top</button>
+    );
+    const { container } = render(
+      <List rows={makeRows(100)} ScrollTopComponent={Custom} />
+    );
+    await flushUpdates();
+    const scroller = scrollerOf(container);
+    await scrollDown(scroller);
+    const scrollTo = vi.spyOn(scroller, "scrollTo");
+
+    fireEvent.click(within(container).getByText("custom top"));
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
+  });
+
+  it("lets the scroll container show its scrollbar on demand", async () => {
+    const { container } = render(
+      <List rows={makeRows(100)} config={{ scrollbar: "auto" }} />
+    );
+    await flushUpdates();
+
+    expect(scrollerOf(container).style.overflow).toBe("auto");
+  });
+
+  it("keeps the scrollbar's space reserved by default", async () => {
+    const { container } = render(<List rows={makeRows(100)} />);
+    await flushUpdates();
+
+    expect(scrollerOf(container).style.overflow).toBe("scroll");
   });
 });

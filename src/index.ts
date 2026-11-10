@@ -13,6 +13,7 @@ export type {
   VirtualizedListConfig,
   VirtualizedItemProps,
   VirtualizedListHandle,
+  ListScrollOptions,
   VisibilityChange,
   NormalizeFunction,
   SelectorFunction,

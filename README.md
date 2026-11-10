@@ -7,7 +7,7 @@ A high-performance React virtual list component with measured variable heights, 
 - **Virtual Scrolling**: Only renders visible items for optimal performance with large datasets
 - **Dynamic Heights**: Items measure their own height (ResizeObserver, border-box) — no fixed row height required
 - **Visibility reporting**: `isVisible` per item and an `onVisibleChange` callback to coordinate work (e.g. fetching) outside the items
-- **Imperative API**: `scrollToItem` / `scrollToTop` via an `apiRef`
+- **Imperative API**: `scrollToItem` / `scrollToTop` via an `apiRef`, animated or instant
 - **Shared item state**: pass a `context` to the list and read it in items with `useVirtualizedListContext`, with selectors so only affected items re-render
 - **External scroll container**: virtualize inside a scroller you own, even below other content, via `scrollContainerRef`
 - **TypeScript**: Fully typed with comprehensive interfaces
@@ -154,6 +154,15 @@ function List() {
     </>
   );
 }
+```
+
+Both actions animate by default. Pass `{ behavior: 'instant' }` to jump
+instead: when positioning a list as it opens, or when following a keyboard
+cursor, where an animation per key press would lag behind the keys.
+
+```tsx
+ref.current?.scrollToItem('item-42', { behavior: 'instant' });
+ref.current?.scrollToTop({ behavior: 'instant' });
 ```
 
 > Note: `scrollToItem` to an item that hasn't been measured yet uses the
@@ -316,8 +325,8 @@ The hook returns:
 | `containerRef` | Callback ref to attach to your scroll container |
 | `listRef` | Callback ref for the element that holds the items. Optional: attach it when the list sits below other content in the scroll container, so its offset is measured (see [Using an external scroll container](#using-an-external-scroll-container)) |
 | `state` | `{ visibleItems, viewportInfo, showScrollToTop, isInitialized, error }` |
-| `scrollToItem(id)` | Scroll the item with this id into view |
-| `scrollToTop()` | Smooth-scroll the container to the top |
+| `scrollToItem(id, options?)` | Scroll the item with this id into view. Animated unless `options.behavior` is `'instant'` |
+| `scrollToTop(options?)` | Scroll the container to the top. Animated unless `options.behavior` is `'instant'` |
 | `measureItem(id, height)` | Report a measured height for an item |
 
 (When using `<VirtualizedList>` rather than the hook, the same `scrollToItem` /
@@ -353,7 +362,8 @@ What changes when the ref is given:
   and the outer element does the scrolling. That element needs a bounded
   height. The list sets `overflow: scroll`, `scrollbar-gutter: stable` and
   `overscroll-behavior: contain` on it as inline styles, without touching any
-  other inline style you applied.
+  other inline style you applied. (`config.scrollbar: 'auto'` makes that
+  `overflow: auto` with no reserved gutter; see [Compact lists](#compact-lists).)
 - **Scroll position and viewport come from the container.** The list listens
   to its `scroll` events (throttled to animation frames) and observes its size
   with a `ResizeObserver`, keeping the scroll position proportional when the
@@ -413,6 +423,34 @@ What changes when the ref is given:
 When you build on the `useVirtualizedList` hook instead of the component,
 attach the hook's `listRef` to the element that holds the items to get the
 same offset handling.
+
+## Compact lists
+
+The defaults suit a feed that fills a page: a scroll-to-top button appears
+after a short scroll, and the scroll container always reserves room for its
+scrollbar so items never change width — and with it height — the moment the
+list outgrows its container. In a small list inside a menu, a picker or a
+popover, both get in the way. Turn them off:
+
+```tsx
+<div style={{ height: 240 }}>
+  <VirtualizedList
+    dataProvider={dataProvider}
+    ItemComponent={Row}
+    showScrollButton={false}
+    config={{ defaultItemHeight: 32, scrollbar: 'auto' }}
+  />
+</div>
+```
+
+- **`showScrollButton={false}`** never renders the scroll-to-top button, the
+  default one or a `ScrollTopComponent`.
+- **`config.scrollbar: 'auto'`** shows a scrollbar only while the content
+  overflows and reserves nothing for it. Use it when rows have a fixed height:
+  with rows that wrap, the scrollbar appearing narrows them, which can change
+  their height.
+- **`{ behavior: 'instant' }`** on `scrollToItem` positions the list without
+  an animation, e.g. on the current selection as the popover opens.
 
 ## Tracking visibility
 
@@ -491,6 +529,7 @@ const MyItem: VirtualizedItemComponent<MyItemData> = ({ id, content, isVisible }
 | `dataProvider` | `DataProvider<T>` | Data source for the list |
 | `ItemComponent` | `React.ComponentType` | Component to render each item |
 | `ScrollTopComponent?` | `React.FC<{ scrollTop: () => void }>` | Optional component that renders a custom scroll top button |
+| `showScrollButton?` | `boolean` | Whether the scroll-to-top button appears once the list is scrolled down. Defaults to `true`. See [Compact lists](#compact-lists) |
 | `EmptyStateComponent?` | `ReactNode` | Optional empty state component |
 | `ErrorStateComponent?` | `React.FC<{ error: Error }>` | Optional error state component |
 | `className?` | `string` | CSS class for the container |
@@ -498,7 +537,7 @@ const MyItem: VirtualizedItemComponent<MyItemData> = ({ id, content, isVisible }
 | `config?` | `VirtualizedListConfig` | Configuration options |
 | `scrollContainerRef?` | `RefObject<HTMLElement \| null>` | Use an existing scrolling element instead of the list's own. The list may sit below other content in it; the ref may fill in after mount. See [Using an external scroll container](#using-an-external-scroll-container) |
 | `scrollButtonPortalRef?` | `RefObject<HTMLElement \| null>` | Element to portal the scroll-to-top button into. Needed with an external scroll container, where the list's wrapper scrolls away with the content |
-| `apiRef?` | `Ref<VirtualizedListHandle>` | Imperative handle exposing `scrollToItem(id)` and `scrollToTop()`. See [Imperative API](#imperative-api-scrolltoitem) |
+| `apiRef?` | `Ref<VirtualizedListHandle>` | Imperative handle exposing `scrollToItem(id, options?)` and `scrollToTop(options?)`. See [Imperative API](#imperative-api-scrolltoitem) |
 | `context?` | `TContext` | Value made available to items via `useVirtualizedListContext()`. Memoize it. See [Sharing state with items](#sharing-state-with-items) |
 
 ### VirtualizedListConfig
@@ -509,6 +548,7 @@ const MyItem: VirtualizedItemComponent<MyItemData> = ({ id, content, isVisible }
 | `defaultItemHeight?` | `number` | 100 | Default list item height in pixels |
 | `visibilityMargin?` | `number` | 200 | Margin (px) around the viewport for deciding visibility, so items count as visible shortly before they scroll on screen |
 | `onVisibleChange?` | `(change: VisibilityChange) => void` | - | Called when the set of visible items changes (see [Tracking visibility](#tracking-visibility)) |
+| `scrollbar?` | `'stable' \| 'auto'` | `'stable'` | `'stable'` always reserves the scrollbar's space; `'auto'` shows a scrollbar only while the content overflows. Read once, when the list is created. See [Compact lists](#compact-lists) |
 
 ## License
 

@@ -231,6 +231,36 @@ tests cover the render-count guarantees, descendants, the empty state, custom
 
 ---
 
+### Compact-list options — `showScrollButton`, `scrollbar`, instant scrolling
+
+The list's defaults assume a page-filling feed. A first consumer that puts
+several small lists side by side in a popover (a cascading picker: one list per
+column) needed three of them to be optional. All three are additive; defaults
+are unchanged.
+
+- **`showScrollButton` prop.** The scroll-to-top button could be replaced but
+  not removed; the only way out was a `ScrollTopComponent` that renders
+  nothing. `showScrollButton={false}` now suppresses it outright.
+- **`config.scrollbar: 'auto'`.** The scroll container was always
+  `overflow: scroll` with a stable gutter, so each small list reserved a
+  scrollbar's width (and, with classic scrollbars, showed both tracks) whether
+  or not it had anything to scroll. `'auto'` sets `overflow: auto` with no
+  gutter. `'stable'` stays the default because it is what keeps item widths —
+  and so measured heights — from changing when the list first overflows.
+- **`{ behavior: 'instant' }` on `scrollToItem` / `scrollToTop`.** Both always
+  animated (except `scrollToItem` to a not-yet-built item, which already
+  jumped). Opening a list on its current selection, or following a keyboard
+  cursor under key repeat, needs a jump. It maps to `"instant"`, not `"auto"`,
+  which would defer to a CSS `scroll-behavior` set on the container.
+- **Scroll button handlers take no arguments.** `scrollToTop` gaining an
+  options parameter meant the common `onClick={scrollTop}` wiring would have
+  passed the click event as options; the button and `ScrollTopComponent` now
+  get a zero-argument wrapper.
+
+Tests cover each (behavior passed through to `scrollTo`; container overflow in
+both modes at the manager and component level; the button shown, suppressed,
+and its click not leaking into options) — 61 in total.
+
 ## 4. Outstanding work
 
 None of the below is required for correctness; they are further performance
@@ -286,7 +316,7 @@ improvements, roughly in descending order of value.
 
 ## 5. Verification
 
-All work is verified locally (`tsc --noEmit`, `npm run build`, `npm test` — 40
+All work is verified locally (`tsc --noEmit`, `npm run build`, `npm test` — 61
 passing) and through CI before merge. Library changes are also smoke-tested in
 the playground (`npm run playground`). Note: the test runner currently requires
 Node 22+ locally (a transitive dep is ESM-only and the rolldown native binding

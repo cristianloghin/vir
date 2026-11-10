@@ -6,6 +6,7 @@ import { Expandable } from "./Expandable";
 import { LoadingErrorAsync } from "./LoadingErrorAsync";
 import { VisibilityVideo } from "./VisibilityVideo";
 import { ExternalScroller } from "./ExternalScroller";
+import { CompactLists } from "./CompactLists";
 
 export interface Example {
   id: string;
@@ -62,5 +63,12 @@ export const examples: Example[] = [
     description:
       "The panel scrolls, not the list, and 300px of other content sits above it. The list measures its own offset, so windowing, scrollToTop and the portalled scroll button all work in list coordinates.",
     Component: ExternalScroller,
+  },
+  {
+    id: "compact",
+    title: "Compact lists",
+    description:
+      "Small lists side by side, as in a picker or a menu: no scroll-to-top button, a scrollbar only when there is something to scroll, and scrollToItem that can jump instead of animate.",
+    Component: CompactLists,
   },
 ];

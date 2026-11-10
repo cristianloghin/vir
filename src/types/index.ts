@@ -95,6 +95,22 @@ export interface VirtualizedListConfig {
    * components. The library reports visibility only; caching/dedup is the
    * consumer's responsibility (and is what makes re-entry a no-op). */
   onVisibleChange?: (change: VisibilityChange) => void;
+  /** How the scroll container shows its scrollbar. `"stable"` (the default)
+   * always reserves the scrollbar's space, so items never change width — and
+   * with it height — the moment the list outgrows its container. `"auto"`
+   * shows a scrollbar only while the content overflows and reserves nothing:
+   * for compact lists (menus, pickers) whose rows don't reflow with width and
+   * where an empty gutter would read as a layout bug. Read once, when the
+   * list is created. */
+  scrollbar?: "stable" | "auto";
+}
+
+/** Options for the imperative scroll actions. */
+export interface ListScrollOptions {
+  /** `"smooth"` (the default) animates to the target. `"instant"` jumps
+   * there: for positioning a list as it opens, or following a keyboard
+   * cursor, where an animation per step would lag behind the keys. */
+  behavior?: "smooth" | "instant";
 }
 
 // Special content types for loading and error states
@@ -150,10 +166,10 @@ export interface ListState<TSelected> {
 }
 export interface VirtualizedListInterface<TData, TSelected = TData> {
   measureItem(id: string, height: number): void;
-  scrollToItem(id: string): void;
+  scrollToItem(id: string, options?: ListScrollOptions): void;
   setScrollContainer(element: HTMLElement): void;
   handleScroll(scrollTop: number): void;
-  scrollToTop(): void;
+  scrollToTop(options?: ListScrollOptions): void;
   initialize(signal: AbortSignal): void;
   subscribe(callback: () => void): () => void;
   getSnapshot(): ListState<TSelected>;
@@ -162,8 +178,10 @@ export interface VirtualizedListInterface<TData, TSelected = TData> {
 /** Imperative handle exposed via the `apiRef` prop on `VirtualizedList`, for
  * the list-internal actions a consumer cannot perform on its own. */
 export interface VirtualizedListHandle {
-  /** Scroll the list so the item with this id is in view. */
-  scrollToItem: (id: string) => void;
-  /** Scroll the list back to the top. */
-  scrollToTop: () => void;
+  /** Scroll the list so the item with this id is in view. Animated unless
+   * `options.behavior` is `"instant"`. */
+  scrollToItem: (id: string, options?: ListScrollOptions) => void;
+  /** Scroll the list back to the top. Animated unless `options.behavior` is
+   * `"instant"`. */
+  scrollToTop: (options?: ListScrollOptions) => void;
 }

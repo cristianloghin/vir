@@ -6,7 +6,11 @@ import {
   RefObject,
 } from "react";
 import { VirtualizedListManager } from "../core/VirtualizedListManager";
-import { DataProviderInterface, VirtualizedListConfig } from "../types";
+import {
+  DataProviderInterface,
+  ListScrollOptions,
+  VirtualizedListConfig,
+} from "../types";
 
 // React hook with stable references
 export function useVirtualizedList<TData = unknown, TTransformed = TData>(
@@ -87,15 +91,18 @@ export function useVirtualizedList<TData = unknown, TTransformed = TData>(
   );
 
   const scrollToItem = useCallback(
-    (id: string) => {
-      manager.scrollToItem(id);
+    (id: string, options?: ListScrollOptions) => {
+      manager.scrollToItem(id, options);
     },
     [manager]
   );
 
-  const scrollToTop = useCallback(() => {
-    manager.scrollToTop();
-  }, [manager]);
+  const scrollToTop = useCallback(
+    (options?: ListScrollOptions) => {
+      manager.scrollToTop(options);
+    },
+    [manager]
+  );
 
   return {
     containerRef,
