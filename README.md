@@ -214,6 +214,8 @@ Your item components receive these props:
 interface VirtualizedItemProps<TContent = unknown> {
   /** Unique identifier for the item */
   id: string;
+  /** Zero-based index in the full list after filtering and sorting */
+  index: number;
   /** The actual data content, placeholder, or error state */
   content: ItemContentState<TContent>;
   /** Whether the item is within the viewport (plus `visibilityMargin`), not
@@ -270,11 +272,29 @@ const MyItemComponent: VirtualizedItemComponent<MyItemData> = ({
 };
 ```
 
+### Alternating row backgrounds
+
+Give the list a `className` such as `orders-table`, then style its row wrappers:
+
+```css
+.orders-table .virtualized-item[data-parity="odd"] {
+  background-color: var(--row-stripe, #f3f5f7);
+}
+```
+
+Index `0` is `even`, so this stripes the second, fourth, and subsequent even-numbered
+rows. Unlike `:nth-child()`, `data-parity` follows the full list order rather
+than the mounted DOM siblings: it stays stable while scrolling and updates when
+you sort or filter. No background is applied by default.
+
 ## Handling Loading States
 
 When you pass loading and error flags to `useDataProvider`, your item components automatically receive placeholder and error states:
 
 ### Loading Skeletons
+Only IDs generated for the active loading state resolve to skeletons. Real
+rows can use the same IDs without being mistaken for placeholders.
+
 ```tsx
 if (isPlaceholderContent(content)) {
   return (
@@ -328,6 +348,16 @@ The hook returns:
 | `scrollToItem(id, options?)` | Scroll the item with this id into view. Animated unless `options.behavior` is `'instant'` |
 | `scrollToTop(options?)` | Scroll the container to the top. Animated unless `options.behavior` is `'instant'` |
 | `measureItem(id, height)` | Report a measured height for an item |
+
+Report all changed heights from a `ResizeObserver` callback together, without
+reading geometry between reports. The list recalculates offsets once, starting
+at the earliest changed row. An intervening `scrollToItem` uses the latest
+measurements without waiting for the next frame.
+
+You can replace `dataProvider` on a mounted list without changing its React
+`key`. The list unsubscribes from the old provider and keeps measured heights
+for IDs that are still present. Removed rows are forgotten; if they return,
+they start at `defaultItemHeight` until measured again.
 
 (When using `<VirtualizedList>` rather than the hook, the same `scrollToItem` /
 `scrollToTop` are available via the [`apiRef`](#imperative-api-scrolltoitem) prop.)

@@ -120,4 +120,22 @@ describe("DataProvider", () => {
 
     expect(provider.getOrderedIds()).toEqual([]);
   });
+
+  it("only synthesizes active placeholder IDs and allows real rows with those IDs", () => {
+    const provider = new DataProvider<Row>({ placeholderCount: 2 });
+    const id = "__placeholder-1";
+    provider.updateRawData([], true, false, null);
+    const first = provider.getItemById(id);
+    expect(first?.content).toMatchObject({ __isPlaceholder: true });
+    expect(provider.getItemById("__placeholder-2")).toBeNull();
+    expect(provider.getItemById("__placeholder-01")).toBeNull();
+    expect(provider.getItemById("__placeholder-real")).toBeNull();
+
+    const row = { id, content: { value: 42 } };
+    provider.updateRawData([row], false, false, null);
+    expect(provider.getItemById(id)).toBe(row);
+    expect(provider.getItemById("__placeholder-0")).toBeNull();
+    provider.updateRawData([], true, false, null);
+    expect(provider.getItemById(id)).not.toBe(first);
+  });
 });

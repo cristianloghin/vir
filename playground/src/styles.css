@@ -136,6 +136,18 @@ body {
   background: var(--panel);
 }
 
+.striped-rows .virtualized-item[data-parity="odd"] {
+  background-color: var(--accent-soft);
+}
+
+.striped-row {
+  display: grid;
+  grid-template-columns: 10ch 1fr;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 16px;
+}
+
 /* Item card shared styling */
 .card {
   padding: 14px 16px;

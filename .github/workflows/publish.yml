@@ -32,12 +32,21 @@ jobs:
       - name: Build package
         run: npm run build
       
-      - name: Extract version from tag
+      - name: Set package version from release tag
         id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-      
-      - name: Update package.json version
-        run: npm version ${{ steps.get_version.outputs.VERSION }} --no-git-tag-version
+        shell: bash
+        run: |
+          number='(0|[1-9][0-9]*)'
+          prerelease="($number|[0-9]*[A-Za-z-][0-9A-Za-z-]*)"
+          build='[0-9A-Za-z-]+'
+          tag_pattern="^v${number}\.${number}\.${number}(-${prerelease}(\.${prerelease})*)?(\+${build}(\.${build})*)?$"
+          if [[ ! "$GITHUB_REF_NAME" =~ $tag_pattern ]]; then
+            echo 'Expected a release tag in v<semver> format.' >&2
+            exit 1
+          fi
+          version="${GITHUB_REF_NAME#v}"
+          npm version "$version" --no-git-tag-version
+          printf 'VERSION=%s\n' "$version" >> "$GITHUB_OUTPUT"
       
       - name: Publish to npm
         run: npm publish

@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import { BasicList } from "./BasicList";
+import { StripedRows } from "./StripedRows";
 import { LargeList } from "./LargeList";
 import { VariableHeight } from "./VariableHeight";
 import { Expandable } from "./Expandable";
@@ -21,6 +22,13 @@ export const examples: Example[] = [
     title: "Basic list",
     description: "A simple fixed-content list — the smallest useful setup.",
     Component: BasicList,
+  },
+  {
+    id: "striped",
+    title: "Striped rows",
+    description:
+      "CSS colors each odd index using data-parity. Scroll to see the stripes stay in place, or reverse the order to see each item's index and stripe change.",
+    Component: StripedRows,
   },
   {
     id: "large",

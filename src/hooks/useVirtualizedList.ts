@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useSyncExternalStore,
   RefObject,
@@ -12,11 +13,11 @@ import {
   VirtualizedListConfig,
 } from "../types";
 
-// React hook with stable references
-export function useVirtualizedList<TData = unknown, TTransformed = TData>(
+// Keep the provider binding out of the scope captured by long-lived list
+// callbacks: unsubscribing alone doesn't release a provider held by a closure.
+function useListManager<TData, TTransformed>(
   dataProvider: DataProviderInterface<TData, TTransformed>,
-  config?: VirtualizedListConfig,
-  scrollContainerRef?: RefObject<HTMLElement | null>
+  config?: VirtualizedListConfig
 ) {
   const managerRef = useRef<VirtualizedListManager<TData, TTransformed>>(null);
 
@@ -27,15 +28,41 @@ export function useVirtualizedList<TData = unknown, TTransformed = TData>(
 
   const manager = managerRef.current;
 
-  // Stable callback refs
+  useLayoutEffect(() => {
+    manager.setDataProvider(dataProvider);
+  }, [manager, dataProvider]);
+  return manager;
+}
+
+function useScrollContainerRef<TData, TTransformed>(
+  manager: VirtualizedListManager<TData, TTransformed>,
+  scrollContainerRef?: RefObject<HTMLElement | null>
+) {
+  const internalContainer = useRef<HTMLElement | null>(null);
   const containerRef = useCallback(
     (element: HTMLElement | null) => {
-      if (element && !scrollContainerRef) {
+      internalContainer.current = element;
+      if (!scrollContainerRef) {
         manager.setScrollContainer(element);
       }
     },
-    [manager]
+    [manager, scrollContainerRef]
   );
+
+  // Ref mutations don't trigger renders. Reconcile on each commit, including
+  // switches to an internal container while the list is empty.
+  useEffect(() => {
+    manager.setScrollContainer((scrollContainerRef ?? internalContainer).current);
+  });
+  return containerRef;
+}
+
+export function useVirtualizedList<TData = unknown, TTransformed = TData>(
+  dataProvider: DataProviderInterface<TData, TTransformed>,
+  config?: VirtualizedListConfig,
+  scrollContainerRef?: RefObject<HTMLElement | null>
+) {
+  const manager = useListManager(dataProvider, config);
 
   // The element that holds the items. Lets the list sit below other content
   // in an external scroll container: its offset from the container's top is
@@ -58,15 +85,7 @@ export function useVirtualizedList<TData = unknown, TTransformed = TData>(
     };
   }, [manager]);
 
-  // Handle external scroll container ref. Runs after every render because
-  // ref mutations don't trigger re-renders, so a dependency array on
-  // `scrollContainerRef.current` misses refs populated after mount.
-  // setScrollContainer bails out when the element is unchanged.
-  useEffect(() => {
-    if (scrollContainerRef?.current) {
-      manager.setScrollContainer(scrollContainerRef.current);
-    }
-  });
+  const containerRef = useScrollContainerRef(manager, scrollContainerRef);
 
   // Keep the visibility callback fresh: the manager is created once, but an
   // inline `onVisibleChange` closes over consumer state that changes per render

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Measurements } from "../src/core/Measurements";
 
 const createMeasurements = (
@@ -39,6 +39,62 @@ describe("Measurements", () => {
     expect(measurements.getMeasurementById("a")?.height).toBe(150);
     expect(measurements.getMeasurementById("b")?.top).toBe(160);
     expect(measurements.getTotalHeight()).toBe(370);
+  });
+
+  it("lays out only one suffix for a burst of out-of-order height reports", async () => {
+    const prefixRead = vi.fn(() => "a");
+    const ids = ["a", "b", "c", "d", "e"];
+    Object.defineProperty(ids, 0, { get: prefixRead });
+    const getIds = vi.fn(() => ids);
+    const measurements = new Measurements(getIds, () => {}, 100, 10);
+    measurements.buildMeasurements();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    getIds.mockClear();
+    prefixRead.mockClear();
+
+    measurements.measureItem("d", 140);
+    measurements.measureItem("c", 180);
+    measurements.measureItem("d", 160);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(measurements.getMeasurementById("d")?.top).toBe(410);
+    expect(measurements.getMeasurementById("e")?.top).toBe(580);
+    expect(measurements.getTotalHeight()).toBe(680);
+    expect(getIds).toHaveBeenCalledTimes(1);
+    expect(prefixRead).not.toHaveBeenCalled();
+  });
+
+  it("uses the new order when data changes before queued heights flush", () => {
+    const ids = ["a", "b", "c"];
+    const { measurements } = createMeasurements(ids);
+    measurements.buildMeasurements();
+    measurements.measureItem("c", 180);
+    ids.reverse();
+    measurements.buildMeasurements();
+    measurements.measureItem("a", 160);
+
+    expect(measurements.getTotalHeight()).toBe(460);
+    expect(measurements.getMeasurementById("c")?.top).toBe(0);
+    expect(measurements.getMeasurementById("a")?.top).toBe(300);
+  });
+
+  it("drops removed heights immediately, including late reports for removed rows", () => {
+    const ids = ["keep", "remove"];
+    const { measurements } = createMeasurements(ids);
+    measurements.buildMeasurements();
+    measurements.measureItem("keep", 170);
+    measurements.measureItem("remove", 250);
+    ids.pop();
+    measurements.buildMeasurements();
+    measurements.measureItem("remove", 300);
+    expect(measurements.getMeasurementById("remove")).toBeUndefined();
+    expect(measurements.getTotalHeight()).toBe(170);
+
+    ids.unshift("remove");
+    measurements.buildMeasurements();
+    expect(measurements.getMeasurementById("remove")?.height).toBe(100);
+    expect(measurements.getMeasurementById("keep")?.top).toBe(110);
+    expect(measurements.getTotalHeight()).toBe(280);
   });
 
   it("ignores sub-pixel and non-positive measurements", () => {

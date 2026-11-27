@@ -1,4 +1,4 @@
-import { ItemMeasurement, ListScrollOptions } from "../types";
+import { ItemPosition, ListScrollOptions } from "../types";
 
 export class ScrollContainer {
   private scrollContainerElement: HTMLElement | null = null;
@@ -40,10 +40,16 @@ export class ScrollContainer {
     if (element) {
       this.containerHeight = element.clientHeight;
       this.measureListOffset();
+      this.lastKnownScrollTop = element.scrollTop;
+      this.applyScrollTop();
 
       // Set up scroll event listener for external container
+      let scrollFrame: number | null = null;
+      let resizeFrame: number | null = null;
       const handleExternalScroll = () => {
-        requestAnimationFrame(() => {
+        if (scrollFrame !== null) return;
+        scrollFrame = requestAnimationFrame(() => {
+          scrollFrame = null;
           if (!this.scrollContainerElement) return;
           // Content above the list can change height without a container
           // resize (a header condensing on scroll), so re-measure per frame.
@@ -72,7 +78,9 @@ export class ScrollContainer {
             this.containerHeight = newHeight;
             if (this.measureListOffset()) this.applyScrollTop();
 
-            requestAnimationFrame(() => {
+            if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
+            resizeFrame = requestAnimationFrame(() => {
+              resizeFrame = null;
               const targetElement = this.scrollContainerElement;
               if (targetElement && ratio > 0) {
                 const newTotalHeight = this.getTotalHeight();
@@ -111,6 +119,8 @@ export class ScrollContainer {
       this.scrollEventCleanup = () => {
         element.removeEventListener("scroll", handleExternalScroll);
         this.resizeObserver?.disconnect();
+        if (scrollFrame !== null) cancelAnimationFrame(scrollFrame);
+        if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
       };
     }
   };
@@ -137,7 +147,7 @@ export class ScrollContainer {
 
   scrollToItemById = (
     itemId: string,
-    measurement?: ItemMeasurement,
+    measurement?: ItemPosition,
     options?: ListScrollOptions
   ) => {
     if (!this.scrollContainerElement) return;
@@ -255,6 +265,11 @@ export class ScrollContainer {
 
     this.scrollContainerElement = null;
     this.listOffset = 0;
+    this.containerHeight = 0;
+    this.scrollTop = 0;
+    this.lastKnownScrollTop = 0;
+    this.scrollTopRatio = 0;
+    this.showScrollToTop = false;
   };
 }
 

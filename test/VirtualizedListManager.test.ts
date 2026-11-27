@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { DataProvider } from "../src/core/DataProvider";
 import { VirtualizedListManager } from "../src/core/VirtualizedListManager";
 import { DataProviderInterface, ListItem } from "../src/types";
 
@@ -40,7 +41,7 @@ const createFakeProvider = (count: number) => {
     }),
   };
 
-  return { provider, notifyData: () => subscribers.forEach((cb) => cb()) };
+  return provider;
 };
 
 const createScrollElement = (clientHeight = 400) => {
@@ -55,14 +56,15 @@ const createScrollElement = (clientHeight = 400) => {
 // 100 items of default height 100 in a 400px container with overscan 5:
 // the viewport window is [scrollTop - 500, scrollTop + 900]
 const createManager = (count = 100) => {
-  const { provider, notifyData } = createFakeProvider(count);
+  const provider = createFakeProvider(count);
   const manager = new VirtualizedListManager(provider, {
     defaultItemHeight: 100,
   });
-  notifyData(); // triggers the initial measurement build
+  const controller = new AbortController();
+  manager.initialize(controller.signal);
   const element = createScrollElement();
   manager.setScrollContainer(element);
-  return { manager, element, notifyData };
+  return { manager, element, controller, provider };
 };
 
 // Gives an element a layout: jsdom reports empty rects, which the list treats
@@ -116,13 +118,11 @@ describe("VirtualizedListManager", () => {
   });
 
   it("includes gap in totalHeight before the scroll container is attached", () => {
-    const { provider, notifyData } = createFakeProvider(10);
+    const provider = createFakeProvider(10);
     const manager = new VirtualizedListManager(provider, {
       defaultItemHeight: 100,
       gap: 10,
     });
-    notifyData(); // builds measurements; not yet initialized (no scroll element)
-
     // 10 * 100 + 9 gaps * 10 = 1090, not 1000 (gap must not be dropped)
     expect(manager.getSnapshot().viewportInfo.totalHeight).toBe(1090);
   });
@@ -284,6 +284,26 @@ describe("VirtualizedListManager", () => {
     );
   });
 
+  it("updates a row's index even if reordering leaves its geometry unchanged", async () => {
+    const provider = new DataProvider<number>({});
+    const rows = [0, 1, 2, 3].map((n) => ({ id: String(n), content: n }));
+    provider.updateRawData(rows, false, false, null);
+    const manager = new VirtualizedListManager(provider);
+    const controller = new AbortController();
+    manager.initialize(controller.signal);
+    manager.setScrollContainer(createScrollElement());
+    manager.measureItem("3", 200);
+    await flush();
+    const target = () => manager.getSnapshot().visibleItems.find((item) => item.id === "2");
+    expect(target()).toMatchObject({ index: 2, measurement: { top: 200 } });
+
+    // Replace two 100px predecessors with one 200px predecessor.
+    provider.updateSelector((items) => [items[3], items[2]]);
+    await flush();
+    expect(target()).toMatchObject({ index: 1, measurement: { top: 200 } });
+    controller.abort();
+  });
+
   it("flags viewport items visible and overscan-only items not visible", () => {
     // 400px container, default margin 200 -> viewport window [0, 600] covers
     // items 0..5; the overscan render window [0, 900] also renders 6..9.
@@ -299,12 +319,12 @@ describe("VirtualizedListManager", () => {
 
   it("reports visibility transitions to onVisibleChange as the window moves", async () => {
     const onVisibleChange = vi.fn();
-    const { provider, notifyData } = createFakeProvider(100);
+    const provider = createFakeProvider(100);
     const manager = new VirtualizedListManager(provider, {
       defaultItemHeight: 100,
       onVisibleChange,
     });
-    notifyData();
+    manager.initialize(new AbortController().signal);
     manager.setScrollContainer(createScrollElement());
     await flush();
 
@@ -335,12 +355,12 @@ describe("VirtualizedListManager", () => {
 
   it("stays silent when a scroll does not change the visible set", async () => {
     const onVisibleChange = vi.fn();
-    const { provider, notifyData } = createFakeProvider(100);
+    const provider = createFakeProvider(100);
     const manager = new VirtualizedListManager(provider, {
       defaultItemHeight: 100,
       onVisibleChange,
     });
-    notifyData();
+    manager.initialize(new AbortController().signal);
     manager.setScrollContainer(createScrollElement());
     await flush();
 
@@ -356,9 +376,8 @@ describe("VirtualizedListManager", () => {
   });
 
   it("preserves the consumer's inline styles on the scroll element", () => {
-    const { provider, notifyData } = createFakeProvider(10);
+    const provider = createFakeProvider(10);
     const manager = new VirtualizedListManager(provider, {});
-    notifyData();
 
     const element = createScrollElement();
     element.style.height = "100%";
@@ -376,9 +395,8 @@ describe("VirtualizedListManager", () => {
   });
 
   it("shows a scrollbar only on overflow with scrollbar: 'auto'", () => {
-    const { provider, notifyData } = createFakeProvider(10);
+    const provider = createFakeProvider(10);
     const manager = new VirtualizedListManager(provider, { scrollbar: "auto" });
-    notifyData();
 
     const element = createScrollElement();
     manager.setScrollContainer(element);
@@ -388,16 +406,17 @@ describe("VirtualizedListManager", () => {
   });
 
   it("survives an initialize/dispose/initialize cycle", async () => {
-    const { manager, element } = createManager();
+    const { manager, element, controller, provider } = createManager();
     const subscriber = vi.fn();
     manager.subscribe(subscriber);
 
-    const first = new AbortController();
-    manager.initialize(first.signal);
-    first.abort();
+    expect(provider.getState().subscriberCount).toBe(1);
+    controller.abort();
+    expect(provider.getState().subscriberCount).toBe(0);
 
     const second = new AbortController();
     manager.initialize(second.signal);
+    expect(provider.getState().subscriberCount).toBe(1);
 
     // Scroll container was re-attached and the subscription survived
     expect(manager.getSnapshot().isInitialized).toBe(true);
@@ -408,5 +427,6 @@ describe("VirtualizedListManager", () => {
     await flush();
     expect(subscriber).toHaveBeenCalled();
     expect(manager.getSnapshot().showScrollToTop).toBe(true);
+    second.abort();
   });
 });

@@ -62,8 +62,6 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
     this.visibilityMargin = config.visibilityMargin ?? 200;
     this.onVisibleChange = config.onVisibleChange;
 
-    this.setupDataSubscription();
-
     this.measurements = new Measurements(
       this.getOrderedIds,
       this.notify,
@@ -100,9 +98,23 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
     this.onVisibleChange = callback;
   };
 
-  setScrollContainer = (element: HTMLElement) => {
+  setDataProvider = (provider: DataProviderInterface<TData, TTransformed>) => {
+    if (provider === this.dataProvider) return;
+    this.dataProvider = provider;
+    if (this.dataUnsubscribe) this.setupDataSubscription();
+    this.measurements.buildMeasurements();
+    this.notify();
+  };
+
+  setScrollContainer = (element: HTMLElement | null) => {
     if (element === this.scrollElement) return;
     this.scrollElement = element;
+    if (!element) {
+      this.scrollContainer.cleanup();
+      this.isInitialized = false;
+      this.notify();
+      return;
+    }
     this.scrollContainer.init(element);
     this.isInitialized = true;
   };
@@ -126,6 +138,8 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
 
     abortSignal.addEventListener("abort", this.dispose, { once: true });
 
+    // A render can be abandoned before its effects run. Only a committed
+    // manager may subscribe to (and be retained by) the provider.
     this.setupDataSubscription();
 
     // Build from whatever the provider already holds. The data subscription
@@ -134,7 +148,6 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
     // sharing a provider — would otherwise render empty until the next data
     // change. buildMeasurements is a no-op-cheap recompute when there are no
     // items yet (first mount), so this is safe in both cases.
-    this.measurements.startNewVersion();
     this.measurements.buildMeasurements();
 
     // Re-attach the scroll container after a previous dispose: the React
@@ -211,10 +224,9 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
       this.dataUnsubscribe();
     }
 
-    this.dataUnsubscribe = this.dataProvider.subscribe(() => {
-      this.measurements.startNewVersion();
-      this.measurements.buildMeasurements();
-    });
+    this.dataUnsubscribe = this.dataProvider.subscribe(
+      this.measurements.buildMeasurements
+    );
   };
 
   private scrollToItemById = (itemId: string, options?: ListScrollOptions) => {
@@ -324,6 +336,7 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
         // measurements), which is what makes this comparison sound.
         const visible: VisibleItem<TTransformed> =
           prev &&
+          prev.index === i &&
           prev.content === item.content &&
           prev.metadata === item.metadata &&
           prev.isVisible === isVisible &&
@@ -332,6 +345,7 @@ export class VirtualizedListManager<TData = unknown, TTransformed = TData>
             ? prev
             : {
                 id: item.id,
+                index: i,
                 content: item.content,
                 metadata: item.metadata,
                 measurement: { top: itemTop, height: measurement.height },

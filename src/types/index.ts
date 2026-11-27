@@ -44,16 +44,7 @@ export interface DataProviderOptions<TData, TSelected = TData> {
   showPlaceholders?: boolean;
 }
 
-export interface ItemMeasurement {
-  height: number;
-  top: number;
-  version: number;
-  lastUsed: number;
-}
-
-// Immutable position snapshot exposed to consumers. Internal
-// ItemMeasurement objects are mutated in place and must not leak
-// into React state.
+// React snapshots copy positions rather than exposing mutable measurements.
 export interface ItemPosition {
   height: number;
   top: number;
@@ -66,6 +57,8 @@ export interface ViewportInfo {
 
 export interface VisibleItem<T = unknown> {
   id: string;
+  /** Zero-based index in the provider's current order, including off-screen rows. */
+  index: number;
   content: T;
   metadata?: Record<string, unknown>;
   measurement?: ItemPosition;
@@ -140,6 +133,8 @@ export const isRealContent = <TContent>(
 export interface VirtualizedItemProps<TContent = unknown> {
   /** Unique identifier for the item */
   id: string;
+  /** Zero-based index in the provider's current order, including off-screen rows. */
+  index: number;
   /** The actual data content, placeholder, or error state */
   content: ItemContentState<TContent>;
   /** Whether the item is within the viewport (plus `visibilityMargin`), not
@@ -167,7 +162,7 @@ export interface ListState<TSelected> {
 export interface VirtualizedListInterface<TData, TSelected = TData> {
   measureItem(id: string, height: number): void;
   scrollToItem(id: string, options?: ListScrollOptions): void;
-  setScrollContainer(element: HTMLElement): void;
+  setScrollContainer(element: HTMLElement | null): void;
   handleScroll(scrollTop: number): void;
   scrollToTop(options?: ListScrollOptions): void;
   initialize(signal: AbortSignal): void;

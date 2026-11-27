@@ -1,10 +1,10 @@
-import { ItemMeasurement } from "../types";
+import { ItemPosition } from "../types";
+
+type IndexedMeasurement = ItemPosition & { index: number };
 
 export class Measurements {
-  private measurements = new Map<string, ItemMeasurement>();
-  private currentVersion = 0;
-  // Total height computed during buildMeasurements; getTotalHeight is on
-  // the per-scroll hot path and must not re-sum the whole list
+  private measurements = new Map<string, IndexedMeasurement>();
+  private dirtyFrom: IndexedMeasurement | null = null;
   private cachedTotalHeight: number | null = null;
   private rafScheduled = false;
 
@@ -15,47 +15,62 @@ export class Measurements {
     private gap: number
   ) {}
 
-  startNewVersion = () => this.currentVersion++;
-
   measureItem = (id: string, height: number) => {
-    if (height <= 0) return;
-
-    const existingMeasurement = this.measurements.get(id);
-    const hasChanged =
-      !existingMeasurement || Math.abs(existingMeasurement.height - height) > 1;
-
-    if (hasChanged) {
-      const top = existingMeasurement?.top ?? 0;
-      const measurement: ItemMeasurement = {
-        height,
-        top,
-        version: this.currentVersion,
-        lastUsed: Date.now(),
-      };
-      this.measurements.set(id, measurement);
-      this.buildMeasurements();
+    if (!Number.isFinite(height) || height <= 0) return;
+    if (this.cachedTotalHeight === null) this.buildMeasurements();
+    const measurement = this.measurements.get(id);
+    // A late observer entry must not resurrect a removed row.
+    if (!measurement || Math.abs(measurement.height - height) <= 1) return;
+    measurement.height = height;
+    if (!this.dirtyFrom || measurement.index < this.dirtyFrom.index) {
+      this.dirtyFrom = measurement;
     }
+    this.scheduleUpdate();
   };
 
   buildMeasurements = () => {
-    const orderedIds = this.getOrderedIds();
-    const now = Date.now();
-    let currentTop = 0;
+    const ids = this.getOrderedIds();
+    this.rebuildFrom(ids, 0, 0);
+    if (this.measurements.size > ids.length) {
+      for (const [id, measurement] of this.measurements) {
+        if (ids[measurement.index] !== id) this.measurements.delete(id);
+      }
+    }
+    this.scheduleUpdate();
+  };
 
-    for (const id of orderedIds) {
+  // Height reports can arrive in any order. The earliest changed row's old
+  // top is still correct; only its suffix needs laying out before the next read.
+  private flushHeights = () => {
+    if (this.dirtyFrom) {
+      this.rebuildFrom(
+        this.getOrderedIds(),
+        this.dirtyFrom.index,
+        this.dirtyFrom.top
+      );
+    }
+  };
+
+  private rebuildFrom = (
+    orderedIds: string[],
+    index: number,
+    currentTop: number
+  ) => {
+    this.dirtyFrom = null;
+
+    for (let i = index; i < orderedIds.length; i++) {
+      const id = orderedIds[i];
       const measurement = this.measurements.get(id);
 
       if (measurement) {
+        measurement.index = i;
         measurement.top = currentTop;
-        measurement.lastUsed = now;
-        measurement.version = this.currentVersion;
         currentTop += measurement.height + this.gap;
       } else {
         this.measurements.set(id, {
           height: this.defaultItemHeight,
+          index: i,
           top: currentTop,
-          version: this.currentVersion,
-          lastUsed: now,
         });
         currentTop += this.defaultItemHeight + this.gap;
       }
@@ -64,35 +79,21 @@ export class Measurements {
     // currentTop includes a trailing gap after the last item
     this.cachedTotalHeight =
       orderedIds.length > 0 ? currentTop - this.gap : 0;
+  };
 
-    // Coalesce: a burst of measureItem calls (one per ResizeObserver
-    // entry) must not queue one frame callback each
+  private scheduleUpdate = () => {
     if (!this.rafScheduled) {
       this.rafScheduled = true;
       requestAnimationFrame(() => {
         this.rafScheduled = false;
-        this.cleanupStaleMeasurements();
+        this.flushHeights();
         this.notify();
       });
     }
   };
 
-  private cleanupStaleMeasurements = () => {
-    const cutoff = Date.now() - 60000;
-    for (const [id, measurement] of this.measurements) {
-      if (
-        measurement.version < this.currentVersion - 1 ||
-        measurement.lastUsed < cutoff
-      ) {
-        this.measurements.delete(id);
-      }
-    }
-  };
-
   getTotalHeight = (): number => {
-    // buildMeasurements runs synchronously on every data change and item
-    // measurement, so the cache is only missing before the first build:
-    // estimate from default heights there
+    this.flushHeights();
     if (this.cachedTotalHeight !== null) {
       return this.cachedTotalHeight;
     }
@@ -102,11 +103,8 @@ export class Measurements {
     return totalCount * this.defaultItemHeight + totalGaps;
   };
 
-  getMeasurementById = (id: string) => {
-    const measurement = this.measurements.get(id);
-    if (measurement && measurement.version === this.currentVersion) {
-      return measurement;
-    }
-    return;
+  getMeasurementById = (id: string): ItemPosition | undefined => {
+    this.flushHeights();
+    return this.measurements.get(id);
   };
 }

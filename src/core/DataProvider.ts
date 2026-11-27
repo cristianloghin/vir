@@ -5,6 +5,8 @@ import {
   SelectorFunction,
 } from "../types";
 
+const placeholderPrefix = "__placeholder-";
+
 export class DataProvider<TData = unknown, TSelected = TData>
   implements DataProviderInterface<TData, TSelected>
 {
@@ -109,17 +111,18 @@ export class DataProvider<TData = unknown, TSelected = TData>
     }
   };
 
+  private showingPlaceholders = () =>
+    this.isLoading &&
+    !this.isRefetching &&
+    this.selectedItems.length === 0 &&
+    this.options.showPlaceholders;
+
   getOrderedIds = () => {
-    if (
-      this.isLoading &&
-      !this.isRefetching &&
-      this.selectedItems.length === 0 &&
-      this.options.showPlaceholders
-    ) {
+    if (this.showingPlaceholders()) {
       if (!this.placeholderIdsCache) {
         this.placeholderIdsCache = Array.from(
           { length: this.options.placeholderCount },
-          (_, i) => `__placeholder-${i}`
+          (_, i) => `${placeholderPrefix}${i}`
         );
       }
       return this.placeholderIdsCache;
@@ -131,21 +134,15 @@ export class DataProvider<TData = unknown, TSelected = TData>
     return this.orderedIdsCache;
   };
 
-  getTotalCount = (): number => {
-    if (
-      this.isLoading &&
-      !this.isRefetching &&
-      this.selectedItems.length === 0 &&
-      this.options.showPlaceholders
-    ) {
-      return this.options.placeholderCount;
-    }
-
-    return this.selectedItems.length;
-  };
+  getTotalCount = (): number =>
+    this.showingPlaceholders()
+      ? this.options.placeholderCount
+      : this.selectedItems.length;
 
   getItemById = (id: string): ListItem<TSelected> | null => {
-    if (id.startsWith("__placeholder-")) {
+    if (this.showingPlaceholders()) {
+      const index = Number(id.slice(placeholderPrefix.length));
+      if (this.getOrderedIds()[index] !== id) return null;
       // Cached so placeholder content keeps a stable identity across
       // snapshots instead of allocating a fresh object per lookup
       let placeholder = this.placeholderItems.get(id);
@@ -177,6 +174,10 @@ export class DataProvider<TData = unknown, TSelected = TData>
   // Private methods
 
   private notify = () => {
+    if (this.placeholderIdsCache && !this.showingPlaceholders()) {
+      this.placeholderIdsCache = null;
+      this.placeholderItems.clear();
+    }
     this.subscribers.forEach((callback) => {
       try {
         callback();

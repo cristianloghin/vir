@@ -53,9 +53,11 @@ export const VirtualizedItem = memo(
         style={style}
         className="virtualized-item"
         data-id={item.id}
+        data-parity={item.index % 2 === 0 ? "even" : "odd"}
       >
         <ItemComponent
           id={item.id}
+          index={item.index}
           content={item.content}
           isVisible={item.isVisible}
           type={(item.content as any)?.type}
